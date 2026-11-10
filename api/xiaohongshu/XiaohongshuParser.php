@@ -403,8 +403,8 @@ class XiaohongshuParser
                     $codecA = $a['_codec'] ?? '';
                     $codecB = $b['_codec'] ?? '';
                     if ($codecA !== $codecB) {
-                        if ($codecA === 'h265') return -1;
-                        if ($codecB === 'h265') return 1;
+                        if ($codecA === 'h264') return -1;
+                        if ($codecB === 'h264') return 1;
                     }
 
                     // 2. 其次按码率

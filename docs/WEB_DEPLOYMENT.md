@@ -1,55 +1,73 @@
-# 拾影 Web UI 部署
+# 拾影 Web UI：本地与 Cloudflare
 
-新增中文响应式界面、邮箱注册/登录和服务端解析权限。未登录请求会返回 401，退出后令牌立即失效。前端源代码在 `web/`，不会发布 PHP 源码或账号数据库。
+当前网页支持抖音、快手、小红书的单条公开作品解析，包含视频、图集、实况、原图预览、单项下载与勾选 ZIP 打包。使用前必须注册登录。主页批量功能暂缓，默认隐藏且接口关闭。
 
-## 本地完整 PHP 版本
+## 本地运行
 
-Windows 当前工作区已经安装了独立 PHP 运行时（忽略的 `.runtime/php`）。运行：
+当前 Windows 工作区已安装独立 PHP（`.runtime/php`），启动：
 
 ```powershell
 ./start.ps1
 ```
 
-访问 http://127.0.0.1:8080 。其他环境安装 PHP 8.0+，启用 curl、openssl、pdo_sqlite、mbstring 后：
+默认监听 `0.0.0.0:8080`，控制台打印本机和局域网访问地址。当前设备地址为 `http://192.168.21.101:8080`，网络分配的 IP 变化后以启动输出为准。仅本机访问可使用 `./start.ps1 -ListenAddress 127.0.0.1`。
+
+局域网防火墙配置以管理员身份运行 `scripts/enable-lan.ps1`；规则仅允许专用网络中 LocalSubnet 访问该 PHP 程序的 TCP 8080 端口。新端口使用 `-Port` 参数。
+
+其他环境需 PHP 8.1+，启用 curl、openssl、pdo_sqlite、mbstring：
 
 ```sh
 php -S 127.0.0.1:8080 server/router.php
 ```
 
-必须使用该 router，不能直接将仓库根目录公开为站点。生产环境应通过 Nginx/Apache 反向代理至此入口（或相同的前置控制器配置），并使用 HTTPS。PHP 内置服务器适用于本地开发。账号存储在 `var/app.sqlite`，备份时保留该文件；不要提交到 Git。
+必须使用 router，仅公开 `web/` 资产；不要将整个仓库直接公开为静态目录。账号数据保存在 `var/app.sqlite`。运行时、账号、浏览器会话、环境秘密均不提交到 GitHub。本地账号与 Cloudflare 账号数据库独立。
 
-该入口调用仓库内原始 PHP 解析器，支持抖音、快手、小红书、B站、微博、头条、皮皮虾、皮皮搞笑、最右。解析成功率仍取决于平台公开接口、网络、作品是否可访问和部分平台的 Cookie 要求。网易云 Python 接口和抖音主页批量解析未接入网页。
+## Cloudflare 运行方式
 
-## GitHub Pages 前端
-
-`.github/workflows/pages.yml` 只上传 `web/`。仓库 Settings → Pages → Source 选择 GitHub Actions。修改 `web/config.js` 中 `apiBase` 为云端 HTTPS 后端地址。项目子目录下的资源全部使用相对地址。
-
-## Cloudflare Workers + D1
-
-Cloudflare Workers 不运行原仓库的 PHP。云端原生实现接入原仓库的抖音 Workers 解析器，支持抖音视频、图集和 Live Photo。网页会说明云端平台范围；其他平台返回明确的 501 提示，不会伪造解析结果。
+前端静态资产与 API 一并部署到同一个 Worker，通过一个 HTTPS 域名访问。D1 保存账号、令牌摘要和短期下载句柄。不依赖本机 PHP 服务或 GitHub Pages。三个平台均有原生 JavaScript 解析代码；原仓库 PHP 解析器保留供本地使用。
 
 ```sh
-npm install --no-save wrangler@4.160.0
+npm ci
+npm run db:local
+npm run dev
+```
+
+访问 `http://127.0.0.1:8787`，即使用与云端相同的前后端代码。首次部署到新的 Cloudflare 账号需创建 D1 数据库，并把数据库 ID 填入 `wrangler.jsonc`；本项目现有数据库 ID 已配置。
+
+```sh
 npx wrangler login --scopes account:read user:read workers:write workers_scripts:write workers_routes:write d1:write
-npx wrangler d1 create shiying-users
-# 将返回的 database_id 填入 wrangler.jsonc
 npx wrangler d1 execute shiying-users --remote --file cloudflare/schema.sql
-npx wrangler deploy
+npm run deploy
 ```
 
-`ALLOWED_ORIGINS` 是逗号分隔的前端来源列表，含协议、不含路径。默认允许 `https://castle9611.github.io` 和本地 8080 端口。
+schema 使用 `CREATE TABLE IF NOT EXISTS`，保留现有用户数据。当前域名：`https://shiying-api.castle9611-shiying.workers.dev`。前后端同域，`web/config.js` 无需写死 API 域名。`ALLOWED_ORIGINS` 用于额外允许的开发来源。
 
-云端用户密码使用随机盐与 PBKDF2-SHA256（100000 次迭代），令牌随机生成、数据库仅保存 SHA-256 摘要，24 小时有效；注册/登录和解析均限流。邮箱目前作为账号标识，不发送邮件验证或密码重置邮件。
+## 下载与账号
 
-## 可选：云端接入其他平台
+每次解析生成一小时有效、绑定当前账号的下载句柄。下载接口不接受任意 URL，每次跳转都检查媒体域名；PHP 额外验证公网地址并固定 DNS。下载需有效登录，退出后令牌失效。
 
-另有可持续运行 PHP 的 HTTPS 服务器时，部署 `server/router.php` 和原始 `api/`，在两端设置相同的随机 `PHP_BRIDGE_SECRET`；Cloudflare 通过 `wrangler secret put PHP_BRIDGE_SECRET` 保存秘密。设置 Worker 的 `PHP_BACKEND` 为该服务器 HTTPS origin。Worker 验证用户后通过 `/api/bridge` 请求 PHP，用户登录令牌不会转发给 PHP。不要把桥接密钥写进前端或 GitHub。
+单文件上限 100 MB；每次 ZIP 最多 100 个文件、合计 150 MB。浏览器按顺序下载后生成 ZIP；部分失败会在 ZIP 中附带失败清单，页面明确显示成功和失败数量。文件在浏览器端暂存，不会长期存入 Cloudflare。
 
-## 验证
+云端密码使用随机盐与 PBKDF2-SHA256；本地 PHP 使用 password_hash。随机会话令牌仅保存 SHA-256 摘要，有效期 24 小时。邮箱作为账号标识，目前不提供邮箱验证或密码找回。
+
+移动端支持双列图集、全宽视频、站内原图切换与滑动预览、安全区及触控按钮。后续封装 APK 时，应为 Android WebView 接入 Blob 下载处理或原生下载桥；网页 ZIP 下载行为需要在实际 APK 中单独验收。
+
+## 验证与同步
 
 ```sh
-python tests/smoke.py
-# 设置 TEST_BASE_URL 可测试另一个后端，默认 http://127.0.0.1:8080
+npm run test:php
+npm run test:worker
+npm run test:frontend
+npm run test:platforms
+npm run test:zip
+npm run test:login
+npm run build
 ```
 
-测试验证注册、重复注册、错误密码、登录权限、退出撤销、平台域名过滤、私有文件隔离。会创建随机 `qa-* @example.com` 测试账号。真实解析需使用有效的公开分享链接单独验证。
+PHP/Worker HTTP 测试使用临时数据库，检查账号、登录撤销与过期、跨域、非法输入、私有文件隔离、下载权限和限流。设置 `TEST_SHARE_URL` 可同时验证真实解析和实际媒体下载。真实平台响应受网络、作品公开状态、短链有效期和平台策略影响；保留小红书分享链接中的签名参数。
+
+`.github/workflows/checks.yml` 在推送时运行验证，不发布网页。GitHub Pages 发布流程已移除；生产部署只通过 Cloudflare。
+
+## 暂缓的主页功能
+
+主页和本机抖音登录助手代码为后续功能保留，默认关闭。仅开发调试可通过 `./start.ps1 -EnableHomeLogin` 启用。用户在独立 Edge 窗口中自行完成抖音登录；助手不读取已有浏览器个人资料、不自动输入账号密码，不把 Cookie 返回网页。Cloudflare 尚未接入此登录窗口，不能将其视为已交付的云端能力。

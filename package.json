@@ -1,0 +1,24 @@
+{
+  "name": "shiying-studio",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev --ip 127.0.0.1 --port 8787",
+    "db:local": "wrangler d1 execute shiying-users --local --file cloudflare/schema.sql",
+    "test:php": "python tests/run_local.py php",
+    "test:worker": "python tests/run_local.py worker",
+    "test:zip": "node tests/zip.test.cjs",
+    "test:frontend": "node tests/frontend.test.cjs",
+    "test:login": "node tests/login-helper.test.mjs",
+    "test:platforms": "node tests/platforms.test.mjs",
+    "build": "wrangler deploy --dry-run --outdir .runtime/worker-build",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0",
+    "wrangler": "4.160.0"
+  },
+  "dependencies": {
+    "playwright-core": "1.58.2"
+  }
+}

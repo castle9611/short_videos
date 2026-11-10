@@ -13,7 +13,7 @@ class KuaishouSpider
     private $userAgent;
     private $timeout;
 
-    public function __construct($cookie, $userAgent, $timeout = 5000)
+    public function __construct($cookie, $userAgent, $timeout = 15)
     {
         $this->cookie = $cookie;
         $this->userAgent = $userAgent;
@@ -39,9 +39,6 @@ class KuaishouSpider
 
         // 3. 识别类型和ID
         [$contentType, $contentId] = $this->extractContentIdAndType($redirectUrl);
-        if (empty($contentId)) {
-            return ['code' => 400, 'msg' => '无法识别的链接类型'];
-        }
         // 4. 尝试解析 (INIT_STATE 优先，其次 APOLLO_STATE)
         $result = $this->extractFromInitState($pageContent)
             ?? $this->extractFromApolloState($pageContent, $contentId, $contentType);
@@ -59,11 +56,17 @@ class KuaishouSpider
             return null;
         }
 
-        $jsonString = rtrim(trim($matches[1]), ';');
-        $data = json_decode($jsonString, true);
+        // Some share pages emit an empty bootstrap state before the populated state.
+        preg_match_all($pattern,$pageContent,$states);
+        $data=null;
+        foreach($states[1] as $candidate) {
+            $jsonString=rtrim(trim($candidate),';');
+            $decoded=json_decode($jsonString,true,512,JSON_BIGINT_AS_STRING);
+            if (is_array($decoded)&&count($this->filterMediaData($decoded))) {$data=$decoded;break;}
+        }
 
         // 解析失败时的容错处理
-        if (json_last_error() !== JSON_ERROR_NONE) {
+        if ($data===null && json_last_error() !== JSON_ERROR_NONE) {
             $cleanedJsonString = stripslashes($jsonString);
             $cleanedJsonString = str_replace([
                 '"{"err_msg":"launchApplication:fail"}"',
@@ -75,17 +78,18 @@ class KuaishouSpider
 
             $data = json_decode($cleanedJsonString, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
-                return ['code' => 500, 'msg' => 'JSON解析错误: ' . json_last_error_msg()];
+                return null;
             }
         }
         // 过滤有效数据
-        $filteredData = $this->filterMediaData($data);
+        $filteredData = $this->filterMediaData(is_array($data)?$data:[]);
         if (empty($filteredData)) {
             return null;
         }
 
         $firstItem = reset($filteredData);
         $photo = $firstItem['photo'] ?? [];
+        if (is_string($photo['ext_params'] ?? null)) $photo['ext_params']=json_decode($photo['ext_params'],true) ?: [];
         // 提取公共音乐信息
         $musicInfo = [];
         $musicSource = $photo['music'] ?? ($photo['soundTrack'] ?? []);
@@ -150,7 +154,7 @@ class KuaishouSpider
         }
 
         // 3. 尝试提取视频
-        if (isset($photo['mainMvUrls']) || (isset($photo['photoType']) && $photo['photoType'] === 'VIDEO')) {
+        if (isset($photo['mainMvUrls']) || isset($photo['manifest']) || (isset($photo['photoType']) && $photo['photoType'] === 'VIDEO')) {
             $videoUrl = $photo['mainMvUrls'][0]['url'] ?? '';
             if (empty($videoUrl) && isset($photo['manifest']['adaptationSet'][0]['representation'][0]['url'])) {
                 $videoUrl = $photo['manifest']['adaptationSet'][0]['representation'][0]['url'];
@@ -192,7 +196,7 @@ class KuaishouSpider
         $cleanedData = preg_replace('/,\s*(?=}|])/', '', $cleanedData);
         $cleanedData = str_replace(';(:());', '', $cleanedData);
 
-        $apolloState = json_decode($cleanedData, true);
+        $apolloState = json_decode(rtrim(trim($cleanedData),';'), true,512,JSON_BIGINT_AS_STRING);
         if (json_last_error() !== JSON_ERROR_NONE) {
             return null;
         }
@@ -229,7 +233,7 @@ class KuaishouSpider
 
         // 根据 contentType 确定资源类型
         $type = 'video';
-        if ($contentType === 'photo') {
+        if (($videoData['photoType'] ?? '')==='SINGLE_PICTURE'||($videoData['singlePicture'] ?? false)===true) {
             $type = 'image';
         }
 
@@ -252,7 +256,7 @@ class KuaishouSpider
     {
         $filtered = [];
         foreach ($data as $key => $value) {
-            if (strpos($key, 'tusjoh') === 0 && (isset($value['fid']) || isset($value['photo']))) {
+            if (strpos((string)$key, 'tusjoh') === 0 && isset($value['photo']) && is_array($value['photo'])) {
                 $filtered[$key] = $value;
             }
         }
@@ -267,8 +271,10 @@ class KuaishouSpider
             CURLOPT_NOBODY => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_USERAGENT => $this->userAgent,
             CURLOPT_TIMEOUT => $this->timeout
         ]);
@@ -303,7 +309,10 @@ class KuaishouSpider
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_HEADER => false,
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_AUTOREFERER => true,

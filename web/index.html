@@ -1,4 +1,41 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111923"><title>拾影 · 短视频解析工作台</title><link rel="stylesheet" href="./style.css"><script src="./config.js" defer></script><script src="./app.js" defer></script></head>
-<body><div class="shell"><aside><a class="brand" href="./"><b>拾</b> 拾影<span>STUDIO</span></a><div class="workspace">你的创作工作台</div><nav><a class="active" href="#">◈ <span>链接解析</span><small>01</small></a><a href="#platforms">▦ <span>支持平台</span><small>09</small></a></nav><div class="aside-note"><span class="dot"></span> 让灵感，轻松留存<p>从一条分享链接开始<br>整理你的下一份创作素材。</p></div><footer>SHORT VIDEOS / OPEN SOURCE<br>为每一个灵感留一帧</footer></aside><main><header><span>工作空间 <i>/</i> 链接解析</span><div id="account"><button class="text-button" id="open-auth">登录 / 注册 ↗</button></div></header><section class="hero"><div class="eyebrow"><span></span> CAPTURE YOUR INSPIRATION</div><h1>好内容，<br>值得<span>被留下。</span><sup>✳</sup></h1><p>粘贴分享链接，提取视频与图集。<br>让素材收集更简单，让创作顺畅发生。</p><div class="hero-art" aria-hidden="true"><div class="art-frame rear"></div><div class="art-frame front"><span>SHIYING / 001</span><div class="play">▶</div><em>每一帧，都有灵感</em><div class="art-line"></div></div><b class="art-star">✳</b></div></section><section class="parser-card"><div class="card-heading"><div><span class="step">01</span><h2>开始解析</h2></div><span class="badge">自动识别平台</span></div><form id="parse-form"><label for="share">视频分享链接</label><textarea id="share" required maxlength="4000" placeholder="在这里粘贴视频链接，或整段分享文案…"></textarea><div class="form-bottom"><span>支持视频、图集和 Live Photo</span><button class="primary" id="parse-button" type="submit">解析链接 <span>↗</span></button></div></form><div class="notice" id="connection"></div></section><p id="status" role="status" aria-live="polite"></p><section id="result" class="result" hidden></section><section id="platforms"><div class="section-title"><h2>灵感不设限</h2><span>支持以下主流平台</span></div><div class="platform-grid"><div><b>♪</b>抖音</div><div><b>快</b>快手</div><div><b>小</b>小红书</div><div><b>▣</b>哔哩哔哩</div><div><b>◉</b>微博</div><div><b>头</b>今日头条</div><div><b>皮</b>皮皮虾</div><div><b>哈</b>皮皮搞笑</div><div><b>右</b>最右</div></div></section><div class="bottom-note"><span>✳ 只需三步：复制链接 → 登录解析 → 保存素材</span><span>请尊重原创，仅保存已获授权的内容。</span></div></main></div>
-<dialog id="auth-dialog"><button class="close" id="close-auth" aria-label="关闭">×</button><div class="eyebrow">WELCOME TO SHIYING</div><h2 id="auth-title">登录拾影</h2><p>登录后，开始整理你的创作灵感。</p><form id="auth-form"><label for="email">邮箱</label><input id="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"><label for="password">密码</label><input id="password" type="password" autocomplete="current-password" required minlength="10" maxlength="72" placeholder="至少 10 位密码"><p id="auth-error" role="alert"></p><button class="primary" id="auth-submit">登录 ↗</button></form><button class="switch" id="switch-auth">还没有账号？立即注册</button></dialog></body></html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111923"><meta name="color-scheme" content="light"><title>拾影 · 短视频解析工作台</title><link rel="stylesheet" href="./style.css"><script src="./config.js" defer></script><script src="./zip.js" defer></script><script src="./app.js" defer></script></head>
+<body>
+<div class="shell">
+  <aside>
+    <a class="brand" href="./"><b>拾</b> 拾影<span>STUDIO</span></a>
+    <div class="workspace">你的创作工作台</div>
+    <nav><a class="active" href="#parser" id="nav-single">◈ <span>链接解析</span><small>01</small></a><a href="#parser" id="nav-home" hidden>▦ <span>主页批量解析</span><small>02</small></a></nav>
+    <div class="aside-note"><span class="dot"></span> 让灵感，轻松留存<p>从一条分享链接开始<br>整理你的下一份创作素材。</p></div>
+    <footer>SHORT VIDEOS / OPEN SOURCE<br>为每一个灵感留一帧</footer>
+  </aside>
+  <main>
+    <header><span>工作空间 <i>/</i> 素材工作台</span><div id="account"></div></header>
+    <section class="hero"><div class="eyebrow"><span></span> CAPTURE YOUR INSPIRATION</div><h1>好内容，<br>值得<span>被留下。</span><sup>✳</sup></h1><p>抖音、快手、小红书，视频与图集轻松整理。<br>粘贴分享链接，选择素材并下载留存。</p><div class="hero-art" aria-hidden="true"><div class="art-frame rear"></div><div class="art-frame front"><span>SHIYING / 001</span><div class="play">▶</div><em>每一帧，都有灵感</em><div class="art-line"></div></div><b class="art-star">✳</b></div></section>
+    <section class="parser-card" id="parser">
+      <div class="card-heading"><div><span class="step">01</span><h2>收集你的灵感</h2></div><span class="badge">登录后使用</span></div>
+      <div class="mode-tabs" role="tablist" aria-label="解析方式" hidden><button id="tab-single" role="tab" aria-selected="true" aria-controls="parse-form">单条作品</button><button id="tab-home" role="tab" aria-selected="false" aria-controls="home-form">抖音主页 · 批量</button></div>
+      <form id="parse-form" role="tabpanel" aria-labelledby="tab-single"><label for="share">视频或图集分享链接</label><textarea id="share" required maxlength="4000" placeholder="粘贴作品链接，或整段分享文案…"></textarea><div class="form-bottom"><span>自动识别平台 · 支持视频 / 图集 / Live Photo</span><button class="primary" id="parse-button" type="submit">解析作品 ↗</button></div></form>
+      <form id="home-form" role="tabpanel" aria-labelledby="tab-home" hidden>
+        <label for="home-url">抖音主页链接</label><input id="home-url" type="url" required maxlength="2000" placeholder="https://www.douyin.com/user/…">
+        <div class="home-settings"><div><label for="home-count">获取作品数量</label><select id="home-count"><option value="18">最近 18 条</option><option value="36">最近 36 条</option><option value="54">最近 54 条</option></select></div><div class="platform-login"><span id="douyin-state">抖音尚未连接</span><div><button class="secondary" id="douyin-login" type="button">登录抖音 ↗</button><button class="text-button" id="douyin-disconnect" type="button" hidden>断开连接</button></div></div></div>
+        <p class="field-note">点击“登录抖音”，在独立窗口中完成扫码或登录。无需复制 Cookie，登录状态仅用于你的主页解析。作品按主页返回顺序排列。</p>
+        <div class="form-bottom"><span>获取列表后，勾选需要保存的作品或素材</span><button class="primary" id="home-button" type="submit">获取主页作品 ↗</button></div>
+      </form>
+      <div class="notice" id="connection"></div>
+    </section>
+    <p id="status" role="status" aria-live="polite"></p>
+    <section id="result" class="results-area" hidden aria-label="解析结果">
+      <div class="result-toolbar"><div><h2 id="result-title">解析结果</h2><p id="result-meta"></p></div><div class="toolbar-actions"><button class="secondary" id="select-all">全选</button><button class="secondary" id="select-none">取消选择</button><button class="primary" id="download-selected">下载所选 ZIP</button></div></div>
+      <div id="download-progress" class="download-progress" role="status" hidden><span id="download-label"></span><button class="text-button" id="cancel-download">取消</button></div>
+      <p class="field-note">支持单项下载与 ZIP 打包。每次最多 100 个文件、合计 150 MB，单个文件上限 100 MB；下载链接 1 小时内有效。</p>
+      <div id="works"></div>
+    </section>
+    <section id="platforms"><div class="section-title"><h2>一个入口，三个平台</h2><span>公开作品 · 自动识别</span></div><div class="platform-grid"><div data-platform="douyin"><b>♪</b>抖音</div><div data-platform="kuaishou"><b>快</b>快手</div><div data-platform="xiaohongshu"><b>小</b>小红书</div></div></section>
+    <div class="bottom-note"><span>✳ 复制链接 → 登录解析 → 勾选下载</span><span>请尊重原创，仅保存已获授权的内容。</span></div>
+  </main>
+</div>
+<dialog id="auth-dialog" aria-labelledby="auth-title"><button class="close" id="close-auth" aria-label="关闭">×</button><div class="eyebrow">WELCOME TO SHIYING</div><h2 id="auth-title">登录拾影</h2><p>登录后，开始整理你的创作灵感。</p><form id="auth-form"><label for="email">邮箱</label><input id="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"><label for="password">密码</label><input id="password" type="password" autocomplete="current-password" required minlength="10" maxlength="72" placeholder="至少 10 位密码"><p id="auth-error" role="alert"></p><button class="primary" id="auth-submit">登录 ↗</button></form><button class="switch" id="switch-auth">还没有账号？立即注册</button></dialog>
+<dialog id="image-preview" class="preview-dialog" aria-label="图片预览"><div class="preview-header"><span id="preview-count"></span><button id="preview-close" aria-label="关闭图片预览">×</button></div><img id="preview-image" alt="原图预览"><div class="preview-controls"><button class="secondary" id="preview-prev" aria-label="上一张">← 上一张</button><button class="primary" id="preview-download">下载原图 ↓</button><button class="secondary" id="preview-next" aria-label="下一张">下一张 →</button></div></dialog>
+</body></html>
