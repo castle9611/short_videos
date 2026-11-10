@@ -1,6 +1,6 @@
 # 拾影 Android 安装包
 
-应用名称：拾影。包名：`cn.shiying.studio`。版本：`1.0.0`（versionCode 1）。支持 Android 8.0 及以上，建议使用最新 Android System WebView。
+应用名称：拾影。包名：`cn.shiying.studio`。版本：`1.0.1`（versionCode 2）。支持 Android 8.0 及以上，建议使用最新 Android System WebView。分享链接输入框支持一键清空。
 
 ## 包含内容
 
@@ -16,7 +16,7 @@ APK 内置 `web/` 的 HTML、CSS、JavaScript，使用 Android WebView 展示。
 
 ## 构建
 
-GitHub Actions → **Build Android APK** → Run workflow。签名后的安装包在构建产物 **Shiying-Android-1.0.0** 中。构建运行签名验证，并提供 SHA256 校验值。
+GitHub Actions → **Build Android APK** → Run workflow。签名后的安装包在构建产物 **Shiying-Android-1.0.1** 中。构建运行签名验证，并提供 SHA256 校验值。
 
 本地有 JDK 17、Android SDK 35、Build Tools 35.0.0 和 Gradle 8.11.1 时，可执行：
 

@@ -47,6 +47,7 @@ async function parse(event,home){
   finally{clearTimeout(timer);busy=false;parseController=undefined;button.disabled=false;}
 }
 $('parse-form').onsubmit=e=>parse(e,false);$('home-form').onsubmit=e=>parse(e,true);
+$('clear-share').onclick=()=>{$('share').value='';$('share').dispatchEvent(new Event('input',{bubbles:true}));$('share').focus();};
 const kinds={video:'视频',image:'原图',live:'实况视频',music:'背景音乐',cover:'封面'};
 function updateSelection(){
   $('result-meta').textContent=`${files.length} 个素材 · 已选择 ${selected.size} 个`;
