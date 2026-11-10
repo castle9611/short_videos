@@ -10,6 +10,10 @@ const xhs='<script>window.__INITIAL_STATE__='+JSON.stringify({note:{noteDetailMa
 const result=extractXhs(xhs,'https://www.xiaohongshu.com/explore/abc?xsec_token=keep');assert.equal(result.url,'https://sns-video.xhscdn.com/avc.mp4');assert.equal(result.images.length,0);assert.equal(result.author.id,'00123');
 let requested=[];const mock=async(url,options)=>{requested.push(url);assert.equal(options.redirect,'manual');return requested.length===1?new Response(null,{status:302,headers:{Location:'https://www.xiaohongshu.com/explore/abc?xsec_token=keep'}}):new Response(xhs);};
 assert.equal((await parsePlatform('https://xhslink.cn/o/test','xiaohongshu',mock)).code,200);assert.ok(requested[1].includes('xsec_token=keep'));
+let overseasCalls=0;const overseas=async()=>++overseasCalls===1?new Response(null,{status:302,headers:{Location:'https://www.rednote.com/explore/abc?xsec_token=keep'}}):new Response(xhs);
+assert.equal((await parsePlatform('https://xhslink.cn/o/test','xiaohongshu',overseas)).code,200);
+const loginPage=async(url)=>new URL(url).pathname==='/login'?new Response('<html><title>登录</title></html>'):new Response(null,{status:302,headers:{Location:'https://www.rednote.com/login'}});
+const limited=await parsePlatform('https://xhslink.cn/o/test','xiaohongshu',loginPage);assert.equal(limited.code,403);assert.equal(limited.diagnostics,undefined);
 const rejected=await parsePlatform('https://v.kuaishou.com/test','kuaishou',async()=>new Response(null,{status:302,headers:{Location:'http://127.0.0.1/private'}}));assert.equal(rejected.code,502);
 assert.equal((await parsePlatform('https://kuaishou.com.evil.test/','kuaishou',mock)).code,400);
 console.log('PASS: Kuaishou video/gallery, XHS H.264 selection, embedded JSON safety, signed queries and redirect restrictions');

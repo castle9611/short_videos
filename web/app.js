@@ -101,5 +101,5 @@ function renderResults(items,home,pagination){
   if(home&&pagination?.has_more)$('works').append(node('p','field-note','主页还有更多作品。本次已返回所选数量，可调整获取数量后重试。'));
   $('result').hidden=false;updateSelection();$('result').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
 }
-renderAccount();api('health').then(d=>{$('connection').textContent='服务已连接 · 支持抖音 / 快手 / 小红书';if(d.features?.home){document.querySelector('.mode-tabs').hidden=false;$('nav-home').hidden=false;}}).catch(()=>{$('connection').textContent='后端暂时无法连接，请检查服务状态';});
+renderAccount();api('health').then(d=>{$('connection').textContent='服务已连接 · 支持抖音 / 快手 / 小红书'+(d.platformWarnings?.xiaohongshu?'。'+d.platformWarnings.xiaohongshu:'');if(d.platformWarnings?.xiaohongshu)document.querySelector('[data-platform="xiaohongshu"]').title=d.platformWarnings.xiaohongshu;if(d.features?.home){document.querySelector('.mode-tabs').hidden=false;$('nav-home').hidden=false;}}).catch(()=>{$('connection').textContent='后端暂时无法连接，请检查服务状态';});
 if(token)api('me').then(d=>renderAccount(d.email)).catch(e=>{$('status').textContent=e.message;});

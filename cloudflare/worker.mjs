@@ -33,7 +33,7 @@ export default {
       response.headers.set('Content-Security-Policy',"default-src 'self'; img-src 'self' https: http: data:; media-src https: http:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
       return response;
     }
-    if (path === '/api/health') return reply({status:'ok',auth:'required',parser:!!env.DB,platforms:['douyin','kuaishou','xiaohongshu'],features:{home:env.ENABLE_HOME==='1'}});
+    if (path === '/api/health') return reply({status:'ok',auth:'required',parser:!!env.DB,platforms:['douyin','kuaishou','xiaohongshu'],platformWarnings:{xiaohongshu:'小红书部分作品在云端被要求平台登录，可能无法解析；本地版可用'},features:{home:env.ENABLE_HOME==='1'}});
     if (!['GET','POST'].includes(request.method)) return reply({msg:'请求方法不支持'},405);
     if (!env.DB) return reply({msg:'账号数据库尚未配置'},503);
     try {

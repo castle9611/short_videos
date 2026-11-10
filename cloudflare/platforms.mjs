@@ -1,16 +1,18 @@
 const desktop='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const mobile='Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1 Edg/122.0.0.0';
-const domains={kuaishou:['kuaishou.com','gifshow.com','chenzhongtech.com'],xiaohongshu:['xiaohongshu.com','xhslink.com','xhslink.cn','xhs.com']};
+const android='Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36';
+const domains={kuaishou:['kuaishou.com','gifshow.com','chenzhongtech.com'],xiaohongshu:['xiaohongshu.com','rednote.com','xhslink.com','xhslink.cn','xhs.com']};
 function allowed(url,platform){try{const u=new URL(url);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password&&!u.port&&domains[platform].some(d=>u.hostname===d||u.hostname.endsWith('.'+d));}catch{return false;}}
 async function page(input,platform,ua,fetcher){
-  let url=input;
+  let url=input,canonical=input;
   for(let i=0;i<6;i++){
-    if(!allowed(url,platform))throw new Error('分享链接跳转到了不支持的地址');
+    if(!allowed(url,platform)){let host='';try{host=new URL(url).hostname;}catch{}throw new Error('分享链接跳转到了不支持的地址'+(host?'（'+host+'）':''));}
+    if(platform==='xiaohongshu'&&/\/(?:explore|item|note)\/[a-zA-Z0-9]+/.test(new URL(url).pathname))canonical=url;
     const r=await fetcher(url,{redirect:'manual',headers:{'User-Agent':ua,Accept:'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8','Accept-Language':'zh-CN,zh;q=0.9',...(platform==='kuaishou'?{'Sec-Fetch-Dest':'document','Sec-Fetch-Mode':'navigate','Sec-Fetch-Site':'none','Sec-Fetch-User':'?1','sec-ch-ua':'"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"','sec-ch-ua-mobile':'?0','sec-ch-ua-platform':'"Windows"'}:{})},signal:AbortSignal.timeout(15000)});
     if(r.status>=300&&r.status<400&&r.headers.get('Location')){url=new URL(r.headers.get('Location'),url).href;await r.body?.cancel();continue;}
     if(!r.ok)throw new Error('平台暂时拒绝访问，请检查链接是否公开可访问');
     const reader=r.body.getReader(),chunks=[];let size=0;while(true){const v=await reader.read();if(v.done)break;size+=v.value.length;if(size>4*1024*1024){await reader.cancel();throw new Error('平台页面过大');}chunks.push(v.value);}
-    return {url,html:await new Blob(chunks).text()};
+    return {url,canonical,html:await new Blob(chunks).text()};
   }
   throw new Error('分享链接跳转次数过多');
 }
@@ -65,16 +67,22 @@ export function extractKuaishou(html,url){
 }
 export async function parsePlatform(url,platform,fetcher=fetch){
   try{
+    let requiresLogin=false;
     if(!domains[platform]||!allowed(url,platform))return {code:400,msg:'链接平台无效',data:[]};
     if(platform==='kuaishou')for(let i=0;i<6;i++){
       if(!allowed(url,platform))throw new Error('分享链接跳转到了不支持的地址');
       const head=await fetcher(url,{method:'HEAD',redirect:'manual',headers:{'User-Agent':mobile},signal:AbortSignal.timeout(10000)});
       const next=head.headers.get('Location');await head.body?.cancel();if(head.status>=300&&head.status<400&&next){url=new URL(next,url).href;continue;}break;
     }
-    for(const ua of platform==='xiaohongshu'?[desktop,mobile]:[mobile,desktop]){
+    for(const ua of platform==='xiaohongshu'?[desktop,android]:[mobile,desktop]){
       const result=await page(url,platform,ua,fetcher);const data=platform==='xiaohongshu'?extractXhs(result.html,result.url):extractKuaishou(result.html,result.url);
+      if(platform==='xiaohongshu'&&/\/(?:login|website-login)(?:\/|$)/.test(new URL(result.url).pathname))requiresLogin=true;
       if(data&&(data.url||data.images.length||data.live_photo.length))return {code:200,msg:'解析成功',data};
+      if(platform==='xiaohongshu'&&result.canonical!==url&&/\/(?:explore|item|note)\/[a-zA-Z0-9]+/.test(new URL(result.canonical).pathname)){
+        const shared=new URL(result.canonical);shared.hostname='www.xiaohongshu.com';shared.searchParams.set('app_platform','android');shared.searchParams.set('ignoreEngage','true');shared.searchParams.set('xsec_source','app_share');url=shared.href;
+      }
     }
+    if(requiresLogin)return {code:403,msg:'小红书在当前云端网络要求登录，暂时无法读取该作品；可使用本地版解析',data:[]};
     return {code:404,msg:'未获取到公开作品，请使用完整分享链接（小红书需保留 xsec_token），或稍后重试',data:[]};
   }catch(e){return {code:502,msg:e.name==='TimeoutError'?'平台响应超时，请稍后重试':e.message,data:[]};}
 }

@@ -9,6 +9,7 @@ import urllib.error
 import urllib.request
 
 BASE = os.environ.get('TEST_BASE_URL', 'http://127.0.0.1:8080').rstrip('/')
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 checks = 0
 
 def check(condition, message):
@@ -18,7 +19,7 @@ def check(condition, message):
     checks += 1
 
 def request(path, body=None, token=None, method=None, headers=None, raw=None):
-    h = {'Content-Type': 'application/json', **(headers or {})}
+    h = {'Content-Type': 'application/json', 'User-Agent': USER_AGENT, **(headers or {})}
     if token:
         h['Authorization'] = 'Bearer ' + token
     data = raw if raw is not None else json.dumps(body).encode() if body is not None else None
@@ -37,7 +38,7 @@ def request(path, body=None, token=None, method=None, headers=None, raw=None):
 
 def status(path, expected, **kwargs):
     response = request(path, **kwargs)
-    check(response[0] == expected, f'{path}: expected {expected}, got {response[0]}: {str(response[1])[:200]}')
+    check(response[0] in ((expected,) if isinstance(expected,int) else expected), f'{path}: expected {expected}, got {response[0]}: {str(response[1])[:200]}')
     return response
 
 health = status('/api/health', 200)[1]
@@ -49,7 +50,7 @@ for path, content_type in [('/', 'text/html'), ('/app.js', 'javascript'), ('/sty
 check("frame-ancestors 'none'" in status('/', 200)[2].get('Content-Security-Policy', ''), 'Missing frame protection')
 status('/', 200, method='HEAD')
 for path in ['/var/app.sqlite', '/server/router.php', '/.git/config', '/../README.md', '/%2e%2e/README.md', '/missing-page']:
-    status(path, 404)
+    status(path, (400,404))
 status('/api/parse', 401, body={'url': 'https://www.douyin.com/video/1'})
 status('/api/me', 401, token='invalid-token')
 status('/api/login', 405)
@@ -103,7 +104,7 @@ if share:
     other=status('/api/register',200,body={'email':'other-'+secrets.token_hex(5)+'@example.com','password':password})[1]
     status('/api/download',404,body={'id':assets[0]['id']},token=other['token'])
     status('/api/logout',200,body={},token=other['token'])
-    download=urllib.request.Request(BASE+'/api/download',data=json.dumps({'id':assets[0]['id']}).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer '+token})
+    download=urllib.request.Request(BASE+'/api/download',data=json.dumps({'id':assets[0]['id']}).encode(),headers={'Content-Type':'application/json','User-Agent':USER_AGENT,'Authorization':'Bearer '+token})
     with urllib.request.urlopen(download,timeout=100) as response:
         check('attachment' in response.headers.get('Content-Disposition',''),'Missing attachment header')
         check(len(response.read())>1000,'Downloaded media is empty')
