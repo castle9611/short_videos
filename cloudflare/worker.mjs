@@ -24,12 +24,13 @@ export default {
     const path = new URL(request.url).pathname;
     if (!path.startsWith('/api/')) {
       if (!['GET','HEAD'].includes(request.method)) return reply({msg:'请使用 GET'},405);
-      if (!['/','/index.html','/style.css','/app.js','/config.js','/zip.js'].includes(path) || !env.ASSETS) return reply({msg:'页面不存在'},404);
+      if (!['/','/index.html','/style.css','/app.js','/config.js','/zip.js','/downloads/shiying.apk'].includes(path) || !env.ASSETS) return reply({msg:'页面不存在'},404);
       const asset = await env.ASSETS.fetch(request);
       const response = new Response(asset.body,asset);
       response.headers.set('Cache-Control','no-cache');
       response.headers.set('X-Content-Type-Options','nosniff');
       response.headers.set('Referrer-Policy','no-referrer');
+      if(path==='/downloads/shiying.apk'&&response.ok){response.headers.set('Content-Type','application/vnd.android.package-archive');response.headers.set('Content-Disposition','attachment; filename="Shiying-1.0.1.apk"');}
       response.headers.set('Content-Security-Policy',"default-src 'self'; img-src 'self' https: http: data:; media-src https: http:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
       return response;
     }

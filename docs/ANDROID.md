@@ -2,6 +2,8 @@
 
 应用名称：拾影。包名：`cn.shiying.studio`。版本：`1.0.1`（versionCode 2）。支持 Android 8.0 及以上，建议使用最新 Android System WebView。分享链接输入框支持一键清空。
 
+安装包下载：`https://shiying-api.castle9611-shiying.workers.dev/downloads/shiying.apk`。对应文件在 `web/downloads/shiying.apk`，仅作为网站下载资产发布，不会递归打包进下一份 APK。
+
 ## 包含内容
 
 APK 内置 `web/` 的 HTML、CSS、JavaScript，使用 Android WebView 展示。不包含 PHP、Node、Cloudflare Worker、数据库或任何后台服务。解析、注册登录与媒体获取均请求现有 Cloudflare HTTPS 后端：
