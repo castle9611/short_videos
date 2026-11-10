@@ -19,6 +19,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const event={preventD
   assert.equal(w.document.querySelectorAll('input[data-file-id]:checked').length,8);
   w.document.getElementById('select-none').click();assert.equal(w.document.getElementById('download-selected').disabled,true);
   w.document.getElementById('select-all').click();await w.document.getElementById('download-selected').onclick();assert.equal(saved.length,1);assert.equal(saved[0].type,'application/zip');
+  await w.document.getElementById('download-individual').onclick();assert.equal(saved.length,9);assert.ok(saved.slice(1).every(blob=>blob.type==='image/jpeg'));
   w.document.getElementById('tab-home').click();assert.equal(w.document.getElementById('home-form').hidden,false);assert.equal(w.document.getElementById('home-cookie'),null);
   await w.document.getElementById('home-form').onsubmit(event);assert.equal(w.document.querySelectorAll('.home-works>.work-card').length,2);
   assert.equal(w.document.querySelectorAll('input[data-work]').length,2);assert.equal(w.document.querySelectorAll('.work-details').length,2);

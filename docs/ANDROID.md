@@ -1,6 +1,6 @@
 # 拾影 Android 安装包
 
-应用名称：拾影。包名：`cn.shiying.studio`。版本：`1.0.1`（versionCode 2）。支持 Android 8.0 及以上，建议使用最新 Android System WebView。分享链接输入框支持一键清空。
+应用名称：拾影。包名：`cn.shiying.studio`。版本：`1.0.2`（versionCode 3）。支持 Android 8.0 及以上，建议使用最新 Android System WebView。支持一键清空、ZIP 和不打包的逐个下载。
 
 安装包下载：`https://shiying-api.castle9611-shiying.workers.dev/downloads/shiying.apk`。对应文件在 `web/downloads/shiying.apk`，仅作为网站下载资产发布，不会递归打包进下一份 APK。
 
@@ -14,11 +14,11 @@ APK 内置 `web/` 的 HTML、CSS、JavaScript，使用 Android WebView 展示。
 
 ## 下载
 
-单项和 ZIP 下载使用系统文件保存窗口选择位置。网页通过分块传输将 Blob 写入 Android 选定文件，不把整个文件编码到一个巨大字符串，不申请相册、全部文件访问或外部存储权限。网络、解析和下载限制与网页相同；小红书云端登录限制也保持一致。
+单项和 ZIP 下载使用系统文件保存窗口选择位置；逐个下载多个文件时，选择一次文件夹后依次保存，不打包 ZIP、不逐个弹出保存窗口。网页通过分块传输将 Blob 写入 Android 选定文件，不把整个文件编码到一个巨大字符串，不申请相册、全部文件访问或外部存储权限。网络、解析和下载限制与网页相同；小红书云端登录限制也保持一致。
 
 ## 构建
 
-GitHub Actions → **Build Android APK** → Run workflow。签名后的安装包在构建产物 **Shiying-Android-1.0.1** 中。构建运行签名验证，并提供 SHA256 校验值。
+GitHub Actions → **Build Android APK** → Run workflow。签名后的安装包在构建产物 **Shiying-Android-1.0.2** 中。构建运行签名验证，并提供 SHA256 校验值。
 
 本地有 JDK 17、Android SDK 35、Build Tools 35.0.0 和 Gradle 8.11.1 时，可执行：
 

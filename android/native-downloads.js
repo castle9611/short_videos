@@ -4,6 +4,13 @@
   window.ShiyingDownloads={
     onReady(id){waiting.get(id)?.resolve();},
     onError(id,message){waiting.get(id)?.reject(new Error(message));},
+    async beginBatch(signal){
+      const id='batch_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+      const abort=()=>{window.ShiyingAndroid.endBatch();waiting.get(id)?.reject(new Error('已取消保存'));};
+      try{if(signal?.aborted)throw new Error('已取消保存');signal?.addEventListener('abort',abort,{once:true});await new Promise((resolve,reject)=>{waiting.set(id,{resolve,reject});const error=window.ShiyingAndroid.beginBatch(id);if(error)reject(new Error(error));});}
+      finally{waiting.delete(id);signal?.removeEventListener('abort',abort);}
+    },
+    endBatch(){window.ShiyingAndroid.endBatch();},
     async save(blob,name,signal){
       const id='save_'+Date.now()+'_'+Math.random().toString(36).slice(2);
       const aborted=()=>{window.ShiyingAndroid.abortSave(id);waiting.get(id)?.reject(new Error('已取消保存'));};

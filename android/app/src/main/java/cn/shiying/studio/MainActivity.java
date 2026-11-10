@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.DocumentsContract;
 import android.util.Base64;
 import android.view.View;
 import android.view.WindowInsets;
@@ -34,6 +35,7 @@ public final class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final String API = "https://shiying-api.castle9611-shiying.workers.dev";
     private static final int SAVE_REQUEST = 41;
+    private static final int FOLDER_REQUEST = 42;
     private static final Set<String> FILES = new HashSet<>(Arrays.asList("index.html","app.js","config.js","style.css","zip.js","native-downloads.js"));
     private WebView web;
     private FrameLayout root;
@@ -93,7 +95,7 @@ public final class MainActivity extends Activity {
         });
     }
     @Override protected void onSaveInstanceState(Bundle state){web.saveState(state);super.onSaveInstanceState(state);}
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==SAVE_REQUEST)downloads.openTarget(result==RESULT_OK&&data!=null?data.getData():null);}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);Uri uri=result==RESULT_OK&&data!=null?data.getData():null;if(request==SAVE_REQUEST)downloads.openTarget(uri);if(request==FOLDER_REQUEST)downloads.openFolder(uri);}
     @Override protected void onDestroy(){downloads.close();if(web!=null){web.removeJavascriptInterface("ShiyingAndroid");web.destroy();}super.onDestroy();}
     private void notifyJs(String method,String id,String message){runOnUiThread(()->{if(!isFinishing())web.evaluateJavascript("window.ShiyingDownloads&&window.ShiyingDownloads."+method+"("+JSONObject.quote(id)+(message==null?"":","+JSONObject.quote(message))+")",null);});}
 
@@ -101,6 +103,16 @@ public final class MainActivity extends Activity {
         private String pendingId;
         private long expected,written;
         private OutputStream stream;
+        private Uri batchFolder;
+        private String batchRequest;
+        @JavascriptInterface public synchronized String beginBatch(String id){
+            if(pendingId!=null||batchRequest!=null)return "另一个保存任务尚未结束";
+            if(id==null||!id.matches("batch_[a-zA-Z0-9_]+"))return "文件夹请求无效";
+            batchRequest=id;batchFolder=null;
+            runOnUiThread(()->{try{Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);startActivityForResult(intent,FOLDER_REQUEST);}catch(Exception error){String requestId=batchRequest;endBatch();if(requestId!=null)notifyJs("onError",requestId,"无法打开文件夹选择窗口");}});return "";
+        }
+        synchronized void openFolder(Uri uri){if(batchRequest==null)return;String id=batchRequest;batchRequest=null;if(uri==null){notifyJs("onError",id,"已取消保存");return;}batchFolder=DocumentsContract.buildDocumentUriUsingTree(uri,DocumentsContract.getTreeDocumentId(uri));notifyJs("onReady",id,null);}
+        @JavascriptInterface public synchronized void endBatch(){batchRequest=null;batchFolder=null;}
         @JavascriptInterface public synchronized String beginSave(String id,String name,String mime,long size){
             if(pendingId!=null)return "另一个文件仍在保存，请稍候";
             if(id==null||!id.matches("save_[a-zA-Z0-9_]+")||size<0||size>152L*1024*1024)return "文件保存请求无效或文件过大";
@@ -108,7 +120,7 @@ public final class MainActivity extends Activity {
             String safeName=name==null?"拾影素材":name.replaceAll("[\\\\/\\p{Cntrl}]","_");
             if(safeName.length()>180)safeName=safeName.substring(0,180);
             final String fileName=safeName;final String contentType=mime!=null&&mime.matches("[a-zA-Z0-9.+-]+/[a-zA-Z0-9.+-]+")?mime:"application/octet-stream";
-            runOnUiThread(()->{try{Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType(contentType);intent.putExtra(Intent.EXTRA_TITLE,fileName);startActivityForResult(intent,SAVE_REQUEST);}catch(Exception error){fail("无法打开系统文件保存窗口");}});
+            runOnUiThread(()->{try{if(batchFolder!=null){Uri target=DocumentsContract.createDocument(getContentResolver(),batchFolder,contentType,fileName);openTarget(target);return;}Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType(contentType);intent.putExtra(Intent.EXTRA_TITLE,fileName);startActivityForResult(intent,SAVE_REQUEST);}catch(Exception error){fail("无法打开系统文件保存窗口");}});
             return "";
         }
         synchronized void openTarget(Uri uri){
