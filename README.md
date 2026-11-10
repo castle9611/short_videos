@@ -1,3 +1,5 @@
+> **新增：拾影 Web UI** — 中文网页、邮箱注册登录、登录后解析、GitHub Pages 前端及 Cloudflare Workers + D1 后端。运行 `./start.ps1` 后访问 http://127.0.0.1:8080 ，完整说明见 [Web 部署文档](docs/WEB_DEPLOYMENT.md)。本地调用多平台 PHP；Cloudflare 原生版当前接入抖音，其他平台需 PHP 后端。
+
 <div align="center">
   <img width="100px" alt="logo" src="img/icon.png"/>
   <h1>短视频去水印解析接口</h1>

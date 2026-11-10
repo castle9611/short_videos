@@ -1,3 +1,9 @@
 .idea/
 .workbuddy/
 *.iml
+.runtime/
+var/
+.env
+*.log
+.wrangler/
+node_modules/
