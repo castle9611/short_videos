@@ -1,6 +1,7 @@
 const $ = id => document.getElementById(id);
 const base = window.APP_CONFIG?.apiBase?.replace(/\/$/,'') || location.origin;
-let token=sessionStorage.getItem('shiying-token')||'', registering=false, busy=false, sessionVersion=0;
+const sessionStore=window.APP_CONFIG?.persistSession?localStorage:sessionStorage;
+let token=sessionStore.getItem('shiying-token')||'', registering=false, busy=false, sessionVersion=0;
 let parseController,downloadController;let files=[];const selected=new Set();
 let platformTimer;
 let previewFiles=[],previewIndex=0;
@@ -18,7 +19,7 @@ async function api(path,body,signal,binary=false){
   if(!response.ok)throw new Error(result.msg||'请求失败');return result;
 }
 function showAuth(){if(!$('auth-dialog').open)$('auth-dialog').showModal();}
-function clearSession(){sessionVersion++;clearInterval(platformTimer);platformTimer=undefined;parseController?.abort();downloadController?.abort();token='';sessionStorage.removeItem('shiying-token');files=[];selected.clear();$('works').replaceChildren();$('result').hidden=true;$('image-preview').close();$('preview-image').removeAttribute('src');previewFiles=[];$('douyin-state').textContent='抖音尚未连接';$('douyin-disconnect').hidden=true;renderAccount();}
+function clearSession(){sessionVersion++;clearInterval(platformTimer);platformTimer=undefined;parseController?.abort();downloadController?.abort();token='';sessionStore.removeItem('shiying-token');files=[];selected.clear();$('works').replaceChildren();$('result').hidden=true;$('image-preview').close();$('preview-image').removeAttribute('src');previewFiles=[];$('douyin-state').textContent='抖音尚未连接';$('douyin-disconnect').hidden=true;renderAccount();}
 function renderAccount(email){
   $('account').replaceChildren();if(email)$('account').append(node('span','',email));
   const button=node('button','text-button',token?'退出登录 ↗':'登录 / 注册 ↗');
@@ -29,7 +30,7 @@ $('close-auth').onclick=()=>$('auth-dialog').close();
 $('switch-auth').onclick=()=>{registering=!registering;$('auth-title').textContent=registering?'创建你的账号':'登录拾影';$('auth-submit').textContent=registering?'注册并登录 ↗':'登录 ↗';$('password').autocomplete=registering?'new-password':'current-password';$('switch-auth').textContent=registering?'已有账号？返回登录':'还没有账号？立即注册';$('auth-error').textContent='';};
 $('auth-form').onsubmit=async event=>{
   event.preventDefault();$('auth-submit').disabled=true;$('auth-error').textContent='';
-  try{if(new TextEncoder().encode($('password').value).length>72)throw new Error('密码不能超过 72 字节');const data=await api(registering?'register':'login',{email:$('email').value,password:$('password').value});sessionVersion++;token=data.token;sessionStorage.setItem('shiying-token',token);renderAccount(data.email);$('password').value='';$('auth-dialog').close();$('status').textContent='登录成功，可以开始解析了';}
+  try{if(new TextEncoder().encode($('password').value).length>72)throw new Error('密码不能超过 72 字节');const data=await api(registering?'register':'login',{email:$('email').value,password:$('password').value});sessionVersion++;token=data.token;sessionStore.setItem('shiying-token',token);renderAccount(data.email);$('password').value='';$('auth-dialog').close();$('status').textContent='登录成功，可以开始解析了';}
   catch(e){$('auth-error').textContent=e.message;}finally{$('auth-submit').disabled=false;}
 };
 function mode(home){$('home-form').hidden=!home;$('parse-form').hidden=home;$('tab-home').setAttribute('aria-selected',String(home));$('tab-single').setAttribute('aria-selected',String(!home));$('nav-home').classList.toggle('active',home);$('nav-single').classList.toggle('active',!home);if(home&&token)platformStatus();}
@@ -53,7 +54,7 @@ function updateSelection(){
   document.querySelectorAll('input[data-file-id]').forEach(input=>{input.checked=selected.has(input.dataset.fileId);});
   document.querySelectorAll('input[data-work]').forEach(input=>{const group=files.filter(f=>f.work===Number(input.dataset.work)&&['video','image','live'].includes(f.kind));input.checked=group.length>0&&group.every(f=>selected.has(f.id));input.indeterminate=group.some(f=>selected.has(f.id))&&!input.checked;});
 }
-function saveBlob(blob,name){const url=URL.createObjectURL(blob);const a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+async function saveBlob(blob,name,signal){if(window.ShiyingDownloads?.save)return await window.ShiyingDownloads.save(blob,name,signal);const url=URL.createObjectURL(blob);const a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function download(items,zip){
   if(downloadController||busy)return;if(!token)return showAuth();if(!items.length||items.length>100){$('status').textContent='每次请选择 1–100 个文件';return;}
   const version=sessionVersion;downloadController=new AbortController();const controller=downloadController;const timeout=setTimeout(()=>controller.abort('timeout'),15*60000);const entries=[],failed=[];let total=0;
@@ -65,8 +66,8 @@ async function download(items,zip){
       catch(e){if(controller.signal.aborted||!token||total>150*1024*1024)throw e;failed.push(items[i].name+'：'+e.message);}
     }
     if(version!==sessionVersion||!token)return;if(!entries.length)throw new Error(failed[0]||'没有可下载的文件');
-    if(zip){if(failed.length)entries.push({name:'下载失败清单.txt',blob:new Blob([failed.join('\n')],{type:'text/plain;charset=utf-8'})});$('download-label').textContent='正在生成 ZIP…';const blob=await window.DownloadZip.create(entries);if(controller.signal.aborted||version!==sessionVersion)return;saveBlob(blob,'拾影素材_'+new Date().toISOString().slice(0,10)+'.zip');}
-    else saveBlob(entries[0].blob,entries[0].name);
+    if(zip){if(failed.length)entries.push({name:'下载失败清单.txt',blob:new Blob([failed.join('\n')],{type:'text/plain;charset=utf-8'})});$('download-label').textContent='正在生成 ZIP…';const blob=await window.DownloadZip.create(entries);if(controller.signal.aborted||version!==sessionVersion)return;await saveBlob(blob,'拾影素材_'+new Date().toISOString().slice(0,10)+'.zip',controller.signal);}
+    else await saveBlob(entries[0].blob,entries[0].name,controller.signal);
     $('status').textContent=`已保存 ${entries.length-(zip&&failed.length?1:0)} 个文件`+(failed.length?`；${failed.length} 个失败，详情见 ZIP 内清单`:'');
   }catch(e){if(version===sessionVersion)$('status').textContent=controller.signal.aborted?'下载已取消':e.message;}
   finally{clearTimeout(timeout);downloadController=undefined;$('download-progress').hidden=true;updateSelection();}

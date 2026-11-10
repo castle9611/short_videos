@@ -12,7 +12,9 @@
     "test:login": "node tests/login-helper.test.mjs",
     "test:platforms": "node tests/platforms.test.mjs",
     "build": "wrangler deploy --dry-run --outdir .runtime/worker-build",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "android:bundle": "node scripts/bundle-android.mjs",
+    "test:android": "node scripts/bundle-android.mjs && node tests/android-downloads.test.cjs"
   },
   "devDependencies": {
     "jsdom": "26.1.0",

@@ -23,4 +23,5 @@ jobs:
       - run: npm run test:frontend
       - run: npm run test:login
       - run: npm run test:platforms
+      - run: npm run test:android
       - run: npm run build

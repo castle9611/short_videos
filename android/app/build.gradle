@@ -1,0 +1,36 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'cn.shiying.studio'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'cn.shiying.studio'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+    }
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('ANDROID_KEYSTORE_PATH') ?: '../signing.p12')
+            storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            keyAlias 'shiying'
+            keyPassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            storeType 'PKCS12'
+        }
+    }
+    buildTypes {
+        release { signingConfig signingConfigs.release; minifyEnabled false; debuggable false }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    sourceSets { main.assets.srcDir layout.buildDirectory.dir('generated/webAssets') }
+}
+
+tasks.register('bundleFrontend', Exec) {
+    workingDir rootProject.projectDir.parentFile
+    commandLine 'node', 'scripts/bundle-android.mjs'
+    inputs.dir rootProject.projectDir.parentFile.toPath().resolve('web').toFile()
+    inputs.file rootProject.projectDir.parentFile.toPath().resolve('android/native-downloads.js').toFile()
+    outputs.dir layout.buildDirectory.dir('generated/webAssets')
+}
+tasks.named('preBuild').configure { dependsOn 'bundleFrontend' }

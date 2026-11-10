@@ -1,0 +1,12 @@
+import {mkdir,readFile,writeFile,copyFile} from 'node:fs/promises';
+import path from 'node:path';
+const destination=path.resolve('android/app/build/generated/webAssets/web');
+await mkdir(destination,{recursive:true});
+for(const filename of ['index.html','style.css','app.js','zip.js'])await copyFile(path.resolve('web',filename),path.join(destination,filename));
+const config={apiBase:'https://shiying-api.castle9611-shiying.workers.dev',persistSession:true};
+await writeFile(path.join(destination,'config.js'),'window.APP_CONFIG = '+JSON.stringify(config)+';\n');
+let html=await readFile(path.join(destination,'index.html'),'utf8');
+html=html.replace('<script src="./app.js" defer>','<script src="./native-downloads.js" defer></script><script src="./app.js" defer>');
+await writeFile(path.join(destination,'index.html'),html);
+await copyFile(path.resolve('android/native-downloads.js'),path.join(destination,'native-downloads.js'));
+console.log('Bundled frontend only. Backend: '+config.apiBase);

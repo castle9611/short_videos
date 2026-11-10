@@ -9,3 +9,9 @@ var/
 node_modules/
 .dev.vars*
 __pycache__/
+android/.gradle/
+android/**/build/
+android/local.properties
+artifacts/
+*.jks
+*.p12
