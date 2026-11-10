@@ -1,4 +1,4 @@
-import suffixes from '../config/media-hosts.json';
+import suffixes from '../config/media-hosts.json' with {type:'json'};
 export function mediaAllowed(value) {
   try { const u=new URL(value); return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password&&!u.port&&suffixes.some(d=>u.hostname===d||u.hostname.endsWith('.'+d)); } catch {return false;}
 }

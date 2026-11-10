@@ -1,3 +1,4 @@
+import {renderXhs} from './xhs-browser.mjs';
 const desktop='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const mobile='Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1 Edg/122.0.0.0';
 const android='Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36';
@@ -65,7 +66,7 @@ export function extractKuaishou(html,url){
   const video=https(data.photoUrl||data.manifestH265?.json?.adaptationSet?.[0]?.representation?.[0]?.backupUrl?.[0]);
   if(!video)return null;const image=data.photoType==='SINGLE_PICTURE'||data.singlePicture===true;return {type:image?'image':'video',title:data.caption||'',author:{name:author.name||'',avatar:https(author.headerUrl||'')},cover:https(data.coverUrl||''),url:image?null:video,images:image?[video]:[],live_photo:[],music:{}};
 }
-export async function parsePlatform(url,platform,fetcher=fetch){
+async function parseHttpPlatform(url,platform,fetcher=fetch){
   try{
     let requiresLogin=false;
     if(!domains[platform]||!allowed(url,platform))return {code:400,msg:'链接平台无效',data:[]};
@@ -85,4 +86,14 @@ export async function parsePlatform(url,platform,fetcher=fetch){
     if(requiresLogin)return {code:403,msg:'小红书在当前云端网络要求登录，暂时无法读取该作品；可使用本地版解析',data:[]};
     return {code:404,msg:'未获取到公开作品，请使用完整分享链接（小红书需保留 xsec_token），或稍后重试',data:[]};
   }catch(e){return {code:502,msg:e.name==='TimeoutError'?'平台响应超时，请稍后重试':e.message,data:[]};}
+}
+
+export async function parsePlatform(url,platform,fetcher=fetch,browser=null){
+  const result=await parseHttpPlatform(url,platform,fetcher);
+  if(platform!=='xiaohongshu'||result.code===200||!browser||!allowed(url,platform))return result;
+  try{
+    const data=await renderXhs(url,browser);
+    if(data)return {code:200,msg:'解析成功',data};
+  }catch{ /* Keep the actionable HTTP error when browser quota or rendering fails. */ }
+  return result;
 }

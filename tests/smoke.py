@@ -101,6 +101,8 @@ if share:
     check(bool(media.get('url') or media.get('images') or media.get('live_photo')), 'No media returned')
     assets=media.get('downloads',[])
     check(len(assets)>0,'No authenticated download handles returned')
+    if media.get('type')=='video':
+        check(any(a.get('kind')=='video' for a in assets),'Video URL was dropped: only cover/music downloads remain')
     other=status('/api/register',200,body={'email':'other-'+secrets.token_hex(5)+'@example.com','password':password})[1]
     status('/api/download',404,body={'id':assets[0]['id']},token=other['token'])
     status('/api/logout',200,body={},token=other['token'])

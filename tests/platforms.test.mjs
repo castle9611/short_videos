@@ -17,3 +17,31 @@ const limited=await parsePlatform('https://xhslink.cn/o/test','xiaohongshu',logi
 const rejected=await parsePlatform('https://v.kuaishou.com/test','kuaishou',async()=>new Response(null,{status:302,headers:{Location:'http://127.0.0.1/private'}}));assert.equal(rejected.code,502);
 assert.equal((await parsePlatform('https://kuaishou.com.evil.test/','kuaishou',mock)).code,400);
 console.log('PASS: Kuaishou video/gallery, XHS H.264 selection, embedded JSON safety, signed queries and redirect restrictions');
+
+// Browser Run returns a JSON envelope around the rendered Rednote mobile HTML.
+const mobileHtml='<script>window.__INITIAL_STATE__='+JSON.stringify({noteData:{data:{noteData:{...note,type:'normal',imageList:Array.from({length:8},(_,i)=>({urlDefault:'https://sns-img.xhscdn.com/'+i+'.jpg'}))}}}})+'</script>';
+let renders=0;
+const browser={quickAction:async(action,options)=>{
+  renders++;assert.equal(action,'content');assert.equal(options.url,'https://xhslink.cn/o/test');
+  assert.equal(options.gotoOptions.timeout,20000);assert.ok(options.rejectResourceTypes.includes('media'));
+  assert.equal(options.cookies,undefined);
+  return Response.json({success:true,result:mobileHtml});
+}};
+const rendered=await parsePlatform('https://xhslink.cn/o/test','xiaohongshu',loginPage,browser);
+assert.equal(rendered.code,200);assert.equal(rendered.data.images.length,8);assert.equal(renders,1);
+assert.equal((await parsePlatform('https://xhslink.cn/o/test','xiaohongshu',loginPage,{quickAction:async()=>{throw new Error('quota exceeded');}})).code,403);
+assert.equal((await parsePlatform('https://xhslink.cn/o/test','xiaohongshu',loginPage,{quickAction:async()=>Response.json({success:true,result:'<html>Login</html>'})})).code,403);
+await parsePlatform('https://www.xiaohongshu.com/explore/abc','xiaohongshu',async()=>new Response(xhs),browser);assert.equal(renders,1);
+await parsePlatform('https://127.0.0.1/private','xiaohongshu',loginPage,browser);assert.equal(renders,1);
+console.log('PASS: cloud browser envelope, eight-image gallery, quota/login fallback, no redundant rendering or untrusted navigation');
+
+// A valid video on Douyin's newer CDN must survive download registration.
+const {registerMedia,mediaAllowed}=await import('../cloudflare/media.mjs');
+const db={prepare:()=>({bind:(...values)=>values}),batch:async()=>{}};
+for(const host of ['v5-dy-ov-experiment.zjcdn.com','v3-dy-o.zjcdn.com']){
+  const registered=await registerMedia(db,1,{type:'video',title:'她不一样',url:'https://'+host+'/sample.mp4',cover:'https://p3.douyinpic.com/cover.jpg'});
+  assert.deepEqual(registered.downloads.map(a=>a.kind),['video','cover']);
+  assert.equal(mediaAllowed('https://'+host+'.evil.test/sample.mp4'),false);
+}
+assert.equal(mediaAllowed('https://unrelated.zjcdn.com/sample.mp4'),false);
+console.log('PASS: Douyin video CDN registration and spoofed/unrelated host rejection');

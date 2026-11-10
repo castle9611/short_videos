@@ -34,7 +34,7 @@ export default {
       response.headers.set('Content-Security-Policy',"default-src 'self'; img-src 'self' https: http: data:; media-src https: http:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
       return response;
     }
-    if (path === '/api/health') return reply({status:'ok',auth:'required',parser:!!env.DB,platforms:['douyin','kuaishou','xiaohongshu'],platformWarnings:{xiaohongshu:'小红书部分作品在云端被要求平台登录，可能无法解析；本地版可用'},features:{home:env.ENABLE_HOME==='1'}});
+    if (path === '/api/health') return reply({status:'ok',auth:'required',parser:!!env.DB,platforms:['douyin','kuaishou','xiaohongshu'],platformWarnings:{xiaohongshu:'小红书云端使用浏览器兼容解析，繁忙时请稍后重试'},features:{home:env.ENABLE_HOME==='1'}});
     if (!['GET','POST'].includes(request.method)) return reply({msg:'请求方法不支持'},405);
     if (!env.DB) return reply({msg:'账号数据库尚未配置'},503);
     try {
@@ -109,7 +109,7 @@ export default {
         return reply(parsed,result.status);
       }
       const platform=['kuaishou.com','gifshow.com','chenzhongtech.com'].some(d=>url.hostname===d||url.hostname.endsWith('.'+d))?'kuaishou':'xiaohongshu';
-      const parsed=await parsePlatform(url.href,platform);if(parsed.code===200)parsed.data=await registerMedia(env.DB,user.id,parsed.data);return reply(parsed,parsed.code>=500?502:200);
+      const parsed=await parsePlatform(url.href,platform,fetch,env.BROWSER);if(parsed.code===200)parsed.data=await registerMedia(env.DB,user.id,parsed.data);return reply(parsed,parsed.code>=500?502:200);
     } catch (error) { console.error('API error',error.message);return reply({msg:'服务暂时不可用，请稍后再试'},500); }
   }
 };
