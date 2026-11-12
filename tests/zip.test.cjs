@@ -7,4 +7,7 @@ vm.runInContext(fs.readFileSync('web/zip.js','utf8'),context);
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'shiying-zip-'));const filename=path.join(temp,'test.zip');
   try{fs.writeFileSync(filename,Buffer.from(await blob.arrayBuffer()));const result=spawnSync('python',['-c',`import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; assert len(z.namelist())==2; assert z.read(z.namelist()[0])==b'sample-image'; assert z.read('work_video.mp4')==bytes([0,1,2,255]); print('PASS: ZIP headers, UTF-8 names, CRC-32, file contents and path sanitization')`,filename],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);console.log(result.stdout.trim());}
   finally{fs.unlinkSync(filename);fs.rmdirSync(temp);}
+  const part=new Blob([new Uint8Array(38*1024*1024)]),large=await context.window.DownloadZip.create(Array.from({length:4},(_,i)=>({name:`large_${i}.bin`,blob:part})));
+  assert.ok(large.size>150*1024*1024);await assert.rejects(()=>context.window.DownloadZip.create([{name:'too-large.bin',blob:{size:0xffffffff,arrayBuffer(){throw new Error('Must reject ZIP32 overflow before reading');}}}]),/ZIP32/);
+  console.log('PASS: ZIP archives above the old 150 MB limit and explicit ZIP32 format overflow handling');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -471,7 +471,7 @@ class DouyinParser
     }
 
     /**
-     * 提取最高画质视频：bitRateList/bit_rate 按 bitRate 降序，v3-web 优先，v26-web 换域名，其余进备用
+     * 提取最高画质视频：先分辨率再码率，v3-web 优先，v26-web 换域名，其余进备用
      */
     private function extractHighestQualityVideo($detail)
     {
@@ -490,9 +490,13 @@ class DouyinParser
 
         if ($bitRateList) {
             usort($bitRateList, function ($a, $b) {
+                $pixels = static function ($item) {
+                    $address = $item['play_addr'] ?? $item['playAddr'][0] ?? [];
+                    return (float)($item['width'] ?? $address['width'] ?? 0) * (float)($item['height'] ?? $address['height'] ?? 0);
+                };
                 $ba = is_array($a) ? (float)($a['bitRate'] ?? $a['bit_rate'] ?? 0) : 0;
                 $bb = is_array($b) ? (float)($b['bitRate'] ?? $b['bit_rate'] ?? 0) : 0;
-                return $bb <=> $ba;
+                return ($pixels($b) <=> $pixels($a)) ?: ($bb <=> $ba);
             });
 
             foreach ($bitRateList as $rateItem) {
@@ -663,7 +667,7 @@ class DouyinParser
     }
 
     /**
-     * 传入视频 vid，拿 302 后的原画直链；任一环节失败则回退拼接的原画地址
+     * 传入视频 vid，拿 302 后的原画直链；失败返回 null，保留已选中的播放流
      * （与 cloudflare workers 版 resolveOriginalVideoUrl 逻辑一致）
      */
     private function resolveOriginalVideoUrl($vid, $ratio = 'default')
@@ -674,7 +678,7 @@ class DouyinParser
         }
 
         $resolved = $this->followLocation($fallbackUrl, 3);
-        return $resolved ?: $fallbackUrl;
+        return $resolved;
     }
 
     /**

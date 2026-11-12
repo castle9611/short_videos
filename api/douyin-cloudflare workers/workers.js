@@ -6,6 +6,7 @@
  *@Api: api.bugpk.com
  *@tip: 抖音解析cloudflare workers版
  */
+export function createParser(fetcher = fetch) {
 const DEFAULT_UA =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 
@@ -15,6 +16,7 @@ const MOBILE_UA =
 
 const REDIRECT_DONE_HOSTS = {
     "www.douyin.com": true,
+    "www.iesdouyin.com": true,
 };
 
 const PLATFORM_HOSTS = {
@@ -36,7 +38,7 @@ const ORIGINAL_PLAY_ENDPOINT = "https://aweme.snssdk.com/aweme/v1/play/";
 const VID_RESOLVE_CONCURRENCY = 8;
 const VID_RESOLVE_MAX_COUNT = 30;
 
-export default {
+const parser = {
     async fetch(request) {
         if (request.method === "OPTIONS") {
             return new Response(null, {status: 204, headers: CORS_HEADERS});
@@ -191,7 +193,7 @@ async function followRedirectsToPlatform(startUrl, max = 8) {
 }
 
 async function requestLocation(url) {
-    const response = await fetch(url, {
+    const response = await fetcher(url, {
         method: "GET",
         redirect: "manual",
         headers: {
@@ -242,10 +244,10 @@ async function resolveOriginalVideoUrl(vid, ratio = "default") {
             current = next;
         }
     } catch {
-        return fallbackUrl;
+        return null;
     }
 
-    return current === fallbackUrl ? fallbackUrl : toHttps(current) || fallbackUrl;
+    return current === fallbackUrl ? null : toHttps(current);
 }
 
 // 从 video 信息中提取 vid（优先 play_addr.uri，兼容 playAddr[0].uri 与 video.uri）
@@ -355,7 +357,7 @@ async function fetchAwemeDetail(awemeId) {
             version_code: "190500",
             version_name: "19.5.0",
         });
-        const response = await fetch(
+        const response = await fetcher(
             `https://api.amemv.com/aweme/v1/aweme/detail/?${params.toString()}`,
             {
                 method: "GET",
@@ -520,8 +522,8 @@ async function buildLegacyFormatData(detail, fallbackVideoId) {
             main = resolvedOriginal;
             // 只要主链接是原画 302 出来的，画质统一标 original
             result.quality = "original";
-        } else if (videoInfo.gearName) {
-            result.quality = videoInfo.gearName;
+        } else if (videoInfo.resolution) {
+            result.quality = videoInfo.resolution;
         }
 
         // 补齐 mime_type=video_mp4；主地址先归一，保证下面去重比较口径一致
@@ -665,13 +667,19 @@ function extractHighestQualityVideo(detail) {
 
     let url = null;
     let gearName = "";
+    let resolution = "";
     const backup = [];
 
     if (bitRateList) {
+        const pixels = item => {
+            if (!isObject(item)) return 0;
+            const address = isObject(item.play_addr) ? item.play_addr : item.playAddr?.[0] || {};
+            return Number(item.width || address.width || 0) * Number(item.height || address.height || 0);
+        };
         bitRateList.sort((a, b) => {
             const ba = isObject(a) ? Number(a.bitRate || a.bit_rate || 0) : 0;
             const bb = isObject(b) ? Number(b.bitRate || b.bit_rate || 0) : 0;
-            return bb - ba;
+            return pixels(b) - pixels(a) || bb - ba;
         });
 
         for (const rateItem of bitRateList) {
@@ -705,6 +713,9 @@ function extractHighestQualityVideo(detail) {
             if (!url) {
                 url = currentBestUrl;
                 gearName = stringValue(rateItem.gearName || rateItem.gear_name || "");
+                const address = rateItem.play_addr || rateItem.playAddr?.[0] || {};
+                const width = Number(rateItem.width || address.width || 0), height = Number(rateItem.height || address.height || 0);
+                if (width && height) resolution = `${width}×${height}`;
             }
 
             for (let candidate of candidates) {
@@ -758,7 +769,7 @@ function extractHighestQualityVideo(detail) {
         }
     }
 
-    return {url, backup, gearName};
+    return {url, backup, gearName, resolution};
 }
 
 // 统一响应契约辅助：1024 进制 B/KB/MB/GB/TB，最多两位小数且不保留尾部 0
@@ -828,7 +839,7 @@ async function probeVideoSize(url) {
         return 0;
     }
     try {
-        const response = await fetch(url, {
+        const response = await fetcher(url, {
             method: "HEAD",
             headers: {"user-agent": DEFAULT_UA},
         });
@@ -960,3 +971,6 @@ function safeDecode(value) {
         return value;
     }
 }
+return parser;
+}
+export default createParser();

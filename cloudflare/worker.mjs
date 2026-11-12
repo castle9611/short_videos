@@ -30,7 +30,7 @@ export default {
       response.headers.set('Cache-Control','no-cache');
       response.headers.set('X-Content-Type-Options','nosniff');
       response.headers.set('Referrer-Policy','no-referrer');
-      if(path==='/downloads/shiying.apk'&&response.ok){response.headers.set('Content-Type','application/vnd.android.package-archive');response.headers.set('Content-Disposition','attachment; filename="Shiying-1.0.2.apk"');}
+      if(path==='/downloads/shiying.apk'&&response.ok){response.headers.set('Content-Type','application/vnd.android.package-archive');response.headers.set('Content-Disposition','attachment; filename="Shiying-1.1.2.apk"');}
       response.headers.set('Content-Security-Policy',"default-src 'self'; img-src 'self' https: http: data:; media-src https: http:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
       return response;
     }

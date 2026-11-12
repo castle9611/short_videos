@@ -8,8 +8,10 @@ try{
   assert.equal((await call('/status',{userId:1},{'X-Helper-Secret':'wrong'})).status,403);
   assert.equal((await call('/status',{userId:1},{Origin:'https://evil.example'})).status,403);
   assert.equal((await call('/status',{userId:'../1'})).status,400);
-  assert.equal((await call('/start')).data.state,'opening');await new Promise(resolve=>setTimeout(resolve,50));
-  const status=(await call('/status')).data;assert.equal(status.state,'connected');assert.equal(status.cookie,undefined);
+  assert.equal((await call('/start')).data.state,'opening');
+  const deadline=Date.now()+5000;let status;
+  do{status=(await call('/status')).data;if(status.state!=='opening')break;await new Promise(resolve=>setTimeout(resolve,20));}while(Date.now()<deadline);
+  assert.equal(status.state,'connected');assert.equal(status.cookie,undefined);
   assert.equal((await call('/cookie')).data.cookie,'sessionid=test-cookie');assert.equal((await call('/status',{userId:2})).data.state,'disconnected');
   assert.equal((await call('/disconnect')).data.state,'disconnected');assert.equal(clearCount,1);assert.equal(closeCount,1);assert.equal(launches,1);
   console.log('PASS: login helper authentication, origin checks, per-user isolation, credential redaction and disconnect');

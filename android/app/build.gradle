@@ -7,8 +7,9 @@ android {
         applicationId 'cn.shiying.studio'
         minSdk 26
         targetSdk 35
-        versionCode 3
-        versionName '1.0.2'
+        versionCode 10
+        versionName '1.1.2'
+        testInstrumentationRunner 'cn.shiying.studio.DownloadCheck'
     }
     signingConfigs {
         release {
@@ -22,6 +23,7 @@ android {
     buildTypes {
         release { signingConfig signingConfigs.release; minifyEnabled false; debuggable false }
     }
+    testBuildType 'release'
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     sourceSets { main.assets.srcDir layout.buildDirectory.dir('generated/webAssets') }
 }
@@ -31,6 +33,15 @@ tasks.register('bundleFrontend', Exec) {
     commandLine 'node', 'scripts/bundle-android.mjs'
     inputs.dir rootProject.projectDir.parentFile.toPath().resolve('web').toFile()
     inputs.file rootProject.projectDir.parentFile.toPath().resolve('android/native-downloads.js').toFile()
+    inputs.file rootProject.projectDir.parentFile.toPath().resolve('android/native-ui.js').toFile()
+    inputs.file rootProject.projectDir.parentFile.toPath().resolve('android/mobile.css').toFile()
+    inputs.file rootProject.projectDir.parentFile.toPath().resolve('config/media-hosts.json').toFile()
+    inputs.file rootProject.projectDir.parentFile.toPath().resolve('config/parser-hosts.json').toFile()
+    inputs.file rootProject.projectDir.parentFile.toPath().resolve('android/device-parser.mjs').toFile()
+    inputs.file rootProject.projectDir.parentFile.toPath().resolve('api/douyin-cloudflare workers/workers.js').toFile()
+    inputs.dir rootProject.projectDir.parentFile.toPath().resolve('cloudflare').toFile()
+    inputs.file rootProject.projectDir.parentFile.toPath().resolve('scripts/bundle-android.mjs').toFile()
+    inputs.file rootProject.projectDir.parentFile.toPath().resolve('LICENSE').toFile()
     outputs.dir layout.buildDirectory.dir('generated/webAssets')
 }
 tasks.named('preBuild').configure { dependsOn 'bundleFrontend' }

@@ -1,0 +1,26 @@
+const {JSDOM}=require('jsdom'),fs=require('node:fs'),assert=require('node:assert/strict');
+const dom=new JSDOM(fs.readFileSync('web/index.html','utf8'),{url:'https://appassets.androidplatform.net/assets/web/index.html',runScripts:'outside-only'}),w=dom.window;
+Object.assign(w,{TextEncoder,AbortController,AbortSignal,Blob,Response,DOMException,matchMedia:()=>({matches:true}),scrollTo(){}});
+w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};w.HTMLElement.prototype.scrollIntoView=()=>{};
+let keepHistory=true,cleared,opened;
+const history=[{uri:'content://test/first',name:'<img src=x onerror=alert(1)>.mp4',bytes:1048576,time:1700000000000,type:'video/mp4'}];
+w.ShiyingAndroid={serverUrl:()=> 'device',folderName:()=> '拾影素材',keepHistoryEnabled:()=>keepHistory,setKeepHistory:value=>{keepHistory=value;},downloadHistory:()=>JSON.stringify(history),clearHistory:value=>{cleared=value;},openHistory:uri=>{opened=uri;}};
+w.eval(fs.readFileSync('android/native-ui.js','utf8'));w.eval(fs.readFileSync('android/native-downloads.js','utf8'));w.eval(fs.readFileSync('web/app.js','utf8'));
+(async()=>{
+  await new Promise(resolve=>setImmediate(resolve));
+  const visible=()=>[...w.document.querySelectorAll('.app-page')].filter(page=>!page.hidden).map(page=>page.dataset.page);
+  assert.deepEqual(visible(),['parse']);assert.equal(w.document.querySelector('aside').hidden,true);
+  assert.equal(w.document.querySelector('#parser .folder-settings'),null);assert.equal(w.document.querySelector('#parser .service-settings'),null);
+  assert.ok(w.document.querySelector('#app-page-settings .folder-settings'));assert.ok(w.document.querySelector('#app-page-settings .service-settings'));
+  w.document.querySelector('.app-tab[data-page="materials"]').click();assert.deepEqual(visible(),['materials']);assert.equal(w.document.getElementById('app-materials-empty').hidden,false);
+  w.document.querySelector('.app-tab[data-page="settings"]').click();assert.deepEqual(visible(),['settings']);assert.equal(w.ShiyingApp.back(),true);assert.deepEqual(visible(),['parse']);assert.equal(w.ShiyingApp.back(),false);
+  const toggle=w.document.getElementById('keep-history');assert.equal(toggle.checked,true);toggle.click();assert.equal(keepHistory,false);assert.equal(history.length,1);
+  w.document.querySelector('.app-tab[data-page="history"]').click();assert.deepEqual(visible(),['history']);
+  assert.equal(w.document.querySelector('.history-file img'),null);assert.equal(w.document.querySelector('.history-file strong').textContent,history[0].name);
+  w.document.querySelector('.history-file').click();assert.equal(opened,history[0].uri);
+  w.document.querySelector('.history-actions button').click();assert.equal(cleared,false);w.document.querySelector('.history-actions .danger').click();assert.equal(cleared,true);
+  history.length=0;w.ShiyingDownloads.onHistoryChanged('','已清空');assert.equal(w.document.querySelectorAll('.history-file').length,0);assert.equal(w.document.getElementById('status').textContent,'已清空');
+  w.eval('renderResults([{type:"video",title:"测试视频",downloads:[{id:"1".repeat(32),name:"video.mp4",kind:"video",url:"https://v.a.yximgs.com/video.mp4"}]}],false)');
+  assert.deepEqual(visible(),['materials']);assert.equal(w.document.getElementById('app-materials-empty').hidden,true);assert.equal(w.document.querySelector('.app-tab[aria-current="page"]').dataset.page,'materials');
+  console.log('PASS: four APK pages, retained history switch, safe filenames, opening/clearing, settings and result navigation');
+})().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>w.close());

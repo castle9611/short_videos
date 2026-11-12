@@ -24,7 +24,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));const event={preventD
   await w.document.getElementById('home-form').onsubmit(event);assert.equal(w.document.querySelectorAll('.home-works>.work-card').length,2);
   assert.equal(w.document.querySelectorAll('input[data-work]').length,2);assert.equal(w.document.querySelectorAll('.work-details').length,2);
   assert.equal(w.eval("safeUrl('javascript:alert(1)')"),null);assert.equal(w.eval("safeUrl('https://user:pass@example.com/')"),null);
-  lateParse=true;const pending=w.document.getElementById('parse-form').onsubmit(event);await tick();await w.document.querySelector('#account button').onclick();
+  w.document.getElementById('share').value='https://v.douyin.com/new-share/';lateParse=true;const pending=w.document.getElementById('parse-form').onsubmit(event);await tick();await w.document.querySelector('#account button').onclick();
   resolveLate(new Response(JSON.stringify({code:200,data:media})));await pending;assert.equal(w.document.getElementById('result').hidden,true);assert.equal(w.document.querySelectorAll('.media-card').length,0);assert.equal(w.sessionStorage.getItem('shiying-token'),null);
   console.log('PASS: grouped results, selection, ZIP download, homepage controls, text safety and logout during parsing');
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>w.close());

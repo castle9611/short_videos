@@ -44,11 +44,12 @@ function registerMedia(PDO $db, int $userId, array $data): array {
 }
 
 function downloadMedia(PDO $db,int $userId,array $body): never {
+    set_time_limit(0);
     if (!is_string($body['id'] ?? null)||!preg_match('/^[a-f0-9]{32}$/',$body['id'])) reply(['msg'=>'无效的下载编号'],400);
     $s=$db->prepare('SELECT * FROM assets WHERE id=? AND user_id=? AND expires>?');$s->execute([$body['id'],$userId,time()]);$asset=$s->fetch(PDO::FETCH_ASSOC);
     if (!$asset) reply(['msg'=>'下载链接已过期或无权访问，请重新解析'],404);
     $url=$asset['url'];$temp=tmpfile();if (!$temp) reply(['msg'=>'无法创建下载缓存'],503);
-    $size=0;$limit=100*1024*1024;$responseHeaders=[];
+    $size=0;$responseHeaders=[];
     // Validate every redirect and pin DNS. Only parser-issued, allowlisted CDN URLs are fetched.
     for($redirect=0;$redirect<6;$redirect++) {
         if (!mediaAllowed($url)) reply(['msg'=>'媒体地址不在允许的下载域名内'],400);
@@ -57,11 +58,10 @@ function downloadMedia(PDO $db,int $userId,array $body): never {
         $port=$p['scheme']==='https'?443:80;$size=0;$responseHeaders=[];ftruncate($temp,0);rewind($temp);
         $ch=curl_init($url);
         $referer=str_contains($host,'bili')?'https://www.bilibili.com/':(preg_match('/sina|weibo/',$host)?'https://weibo.com/':(preg_match('/xhs|xiaohongshu/',$host)?'https://www.xiaohongshu.com/':(preg_match('/kwimg|yximg|kwaicdn/',$host)?'https://www.kuaishou.com/':'https://www.douyin.com/')));
-        curl_setopt_array($ch,[CURLOPT_PROXY=>'',CURLOPT_RESOLVE=>["$host:$port:$ip"],CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>90,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_USERAGENT=>'Mozilla/5.0',CURLOPT_REFERER=>$referer,
+        curl_setopt_array($ch,[CURLOPT_PROXY=>'',CURLOPT_RESOLVE=>["$host:$port:$ip"],CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>0,CURLOPT_LOW_SPEED_LIMIT=>1,CURLOPT_LOW_SPEED_TIME=>90,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_USERAGENT=>'Mozilla/5.0',CURLOPT_REFERER=>$referer,
             CURLOPT_HEADERFUNCTION=>function($c,string $line) use (&$responseHeaders): int {$parts=explode(':',$line,2);if(count($parts)===2)$responseHeaders[strtolower(trim($parts[0]))]=trim($parts[1]);return strlen($line);},
-            CURLOPT_WRITEFUNCTION=>function($c,string $chunk) use ($temp,&$size,$limit): int {$size+=strlen($chunk);if($size>$limit)return 0;return fwrite($temp,$chunk);}]);
+            CURLOPT_WRITEFUNCTION=>function($c,string $chunk) use ($temp,&$size): int {$size+=strlen($chunk);return fwrite($temp,$chunk);}]);
         $ok=curl_exec($ch);$code=curl_getinfo($ch,CURLINFO_HTTP_CODE);
-        if ($size>$limit) reply(['msg'=>'单个文件超过 100 MB 下载上限'],413);
         if (!$ok) reply(['msg'=>'媒体下载失败，请稍后重试或重新解析'],502);
         if ($code>=300&&$code<400&&isset($responseHeaders['location'])) {
             $next=$responseHeaders['location'];

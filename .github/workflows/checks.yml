@@ -15,9 +15,14 @@ jobs:
         with:
           php-version: '8.3'
           extensions: curl, pdo_sqlite, mbstring, openssl
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - run: npm ci
       - run: python tests/run_local.py php
       - run: php tests/kuaishou.test.php
+      - run: php tests/douyin-quality.test.php
       - run: python tests/run_local.py worker
       - run: npm run test:zip
       - run: npm run test:frontend

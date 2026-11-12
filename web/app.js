@@ -1,26 +1,34 @@
 const $ = id => document.getElementById(id);
 const base = window.APP_CONFIG?.apiBase?.replace(/\/$/,'') || location.origin;
 const sessionStore=window.APP_CONFIG?.persistSession?localStorage:sessionStorage;
-let token=sessionStore.getItem('shiying-token')||'', registering=false, busy=false, sessionVersion=0;
+const sessionKey=window.APP_CONFIG?.sessionKey||'shiying-token';
+const deviceMode=!!window.APP_CONFIG?.deviceMode;
+let token=deviceMode?'0'.repeat(64):sessionStore.getItem(sessionKey)||'', registering=false, busy=false, sessionVersion=0;
 let parseController,downloadController;let files=[];const selected=new Set();
 let platformTimer;
 let previewFiles=[],previewIndex=0;
+let parseCache;
 function node(tag,className,text){const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;}
 function safeUrl(value){if(typeof value!=='string')return null;try{const u=new URL(value);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password?u.href:null;}catch{return null;}}
 async function api(path,body,signal,binary=false){
-  const response=await fetch(base+'/api/'+path,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body),signal:signal||AbortSignal.timeout(95000)});
-  if(response.status===401&&!['login','register'].includes(path)){clearSession();showAuth();}
+  const version=sessionVersion;
+  const response=!binary&&window.ShiyingDownloads?.request?await window.ShiyingDownloads.request(path,body,token,signal||AbortSignal.timeout(95000)):await fetch(base+'/api/'+path,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body),signal:signal||AbortSignal.timeout(95000)});
+  const checkSession=()=>{if(path!=='health'&&version!==sessionVersion)throw new DOMException('登录状态已变更，请重试','AbortError');};
+  checkSession();
   if(binary&&response.ok){
-    const reader=response.body.getReader(),chunks=[];let size=0;
-    while(true){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>100*1024*1024){await reader.cancel();throw new Error('单个文件超过 100 MB');}chunks.push(value);}
-    return new Blob(chunks,{type:response.headers.get('Content-Type')||'application/octet-stream'});
+    const reader=response.body.getReader(),chunks=[];
+    while(true){const {value,done}=await reader.read();if(done)break;chunks.push(value);}
+    checkSession();return new Blob(chunks,{type:response.headers.get('Content-Type')||'application/octet-stream'});
   }
   const result=await response.json().catch(()=>{throw new Error('服务返回异常，请稍后重试');});
+  checkSession();
+  if(response.status===401&&!['login','register'].includes(path)){clearSession();showAuth();}
   if(!response.ok)throw new Error(result.msg||'请求失败');return result;
 }
 function showAuth(){if(!$('auth-dialog').open)$('auth-dialog').showModal();}
-function clearSession(){sessionVersion++;clearInterval(platformTimer);platformTimer=undefined;parseController?.abort();downloadController?.abort();token='';sessionStore.removeItem('shiying-token');files=[];selected.clear();$('works').replaceChildren();$('result').hidden=true;$('image-preview').close();$('preview-image').removeAttribute('src');previewFiles=[];$('douyin-state').textContent='抖音尚未连接';$('douyin-disconnect').hidden=true;renderAccount();}
+function clearSession(){sessionVersion++;parseCache=undefined;clearInterval(platformTimer);platformTimer=undefined;parseController?.abort();downloadController?.abort();token='';sessionStore.removeItem(sessionKey);files=[];selected.clear();$('works').replaceChildren();$('result').hidden=true;$('image-preview').close();$('preview-image').removeAttribute('src');previewFiles=[];$('douyin-state').textContent='抖音尚未连接';$('douyin-disconnect').hidden=true;renderAccount();}
 function renderAccount(email){
+  if(deviceMode){$('account').replaceChildren(node('span','','手机本地解析 · 无需登录'));return;}
   $('account').replaceChildren();if(email)$('account').append(node('span','',email));
   const button=node('button','text-button',token?'退出登录 ↗':'登录 / 注册 ↗');
   button.onclick=async()=>{if(!token)return showAuth();button.disabled=true;parseController?.abort();downloadController?.abort();try{await api('logout',{});clearSession();$('status').textContent='已退出登录';}catch(e){button.disabled=false;$('status').textContent='退出失败，请重试：'+e.message;}};
@@ -30,7 +38,7 @@ $('close-auth').onclick=()=>$('auth-dialog').close();
 $('switch-auth').onclick=()=>{registering=!registering;$('auth-title').textContent=registering?'创建你的账号':'登录拾影';$('auth-submit').textContent=registering?'注册并登录 ↗':'登录 ↗';$('password').autocomplete=registering?'new-password':'current-password';$('switch-auth').textContent=registering?'已有账号？返回登录':'还没有账号？立即注册';$('auth-error').textContent='';};
 $('auth-form').onsubmit=async event=>{
   event.preventDefault();$('auth-submit').disabled=true;$('auth-error').textContent='';
-  try{if(new TextEncoder().encode($('password').value).length>72)throw new Error('密码不能超过 72 字节');const data=await api(registering?'register':'login',{email:$('email').value,password:$('password').value});sessionVersion++;token=data.token;sessionStore.setItem('shiying-token',token);renderAccount(data.email);$('password').value='';$('auth-dialog').close();$('status').textContent='登录成功，可以开始解析了';}
+  try{if(new TextEncoder().encode($('password').value).length>72)throw new Error('密码不能超过 72 字节');const data=await api(registering?'register':'login',{email:$('email').value,password:$('password').value});sessionVersion++;token=data.token;sessionStore.setItem(sessionKey,token);renderAccount(data.email);$('password').value='';$('auth-dialog').close();$('status').textContent='登录成功，可以开始解析了';}
   catch(e){$('auth-error').textContent=e.message;}finally{$('auth-submit').disabled=false;}
 };
 function mode(home){$('home-form').hidden=!home;$('parse-form').hidden=home;$('tab-home').setAttribute('aria-selected',String(home));$('tab-single').setAttribute('aria-selected',String(!home));$('nav-home').classList.toggle('active',home);$('nav-single').classList.toggle('active',!home);if(home&&token)platformStatus();}
@@ -42,11 +50,20 @@ async function parse(event,home){
   event.preventDefault();if(!token)return showAuth();if(busy||downloadController)return;$('status').textContent=home?'正在获取主页作品，请稍候…':'正在解析作品，请稍候…';busy=true;const version=sessionVersion;
   const button=$(home?'home-button':'parse-button');button.disabled=true;parseController=new AbortController();const controller=parseController;const timer=setTimeout(()=>controller.abort('timeout'),95000);
   const payload=home?{url:$('home-url').value,count:Number($('home-count').value)}:{url:$('share').value};
-  try{const result=await api(home?'home':'parse',payload,controller.signal);if(version!==sessionVersion||!token)return;if(Number(result.code)!==200)throw new Error(result.msg||'解析失败，请检查链接');renderResults(home?result.data:[result.data],home,result.pagination);$('status').textContent=home?'主页作品已获取，可勾选批量下载':'解析完成，可选择需要保存的素材';}
+  const key=(payload.url.match(/https?:\/\/[^\s<>"']+/i)?.[0]||payload.url).replace(/[，。；,.;]+$/u,'').trim();
+  const cached=!home&&parseCache?.key===key&&parseCache.version===version&&parseCache.until>Date.now();
+  try{const result=cached?parseCache.result:await api(home?'home':'parse',payload,controller.signal);if(version!==sessionVersion||!token)return;if(Number(result.code)!==200)throw new Error(result.msg||'解析失败，请检查链接');renderResults(home?result.data:[result.data],home,result.pagination);if(!home&&!cached)parseCache={key,version,result,until:Date.now()+120000};$('status').textContent=home?'主页作品已获取，可勾选批量下载':cached?'已复用最近解析结果，可直接下载':'解析完成，可选择需要保存的素材';}
   catch(e){if(version===sessionVersion)$('status').textContent=controller.signal.reason==='timeout'?'请求超时，请稍后重试':controller.signal.aborted?'解析已取消':e.message;}
   finally{clearTimeout(timer);busy=false;parseController=undefined;button.disabled=false;}
 }
 $('parse-form').onsubmit=e=>parse(e,false);$('home-form').onsubmit=e=>parse(e,true);
+document.addEventListener('shiying:open',async()=>{
+  $('share').value='';if(busy||downloadController)return;window.ShiyingApp?.show('parse');
+  if(!window.ShiyingDownloads?.autoClipboardEnabled?.())return;
+  const text=window.ShiyingDownloads.clipboardText(),url=window.ShiyingDeviceParser?.shareUrl(text);if(!url)return;
+  $('share').value=url;if(!token&&!deviceMode){$('status').textContent='已填入剪贴板链接，请先登录后解析';return;}
+  await parse({preventDefault(){}},false);
+});
 $('clear-share').onclick=()=>{$('share').value='';$('share').dispatchEvent(new Event('input',{bubbles:true}));$('share').focus();};
 const kinds={video:'视频',image:'原图',live:'实况视频',music:'背景音乐',cover:'封面'};
 function updateSelection(){
@@ -59,27 +76,33 @@ function updateSelection(){
 async function saveBlob(blob,name,signal){if(window.ShiyingDownloads?.save)return await window.ShiyingDownloads.save(blob,name,signal);const url=URL.createObjectURL(blob);const a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function download(items,zip){
   if(downloadController||busy)return;if(!token)return showAuth();if(!items.length||items.length>100){$('status').textContent='每次请选择 1–100 个文件';return;}
-  const version=sessionVersion;downloadController=new AbortController();const controller=downloadController;const timeout=setTimeout(()=>controller.abort('timeout'),15*60000);const entries=[],failed=[];let total=0,savedCount=0,directory;
+  const version=sessionVersion;downloadController=new AbortController();const controller=downloadController;const entries=[],failed=[];let savedCount=0,directory;
   $('download-progress').hidden=false;updateSelection();
   try{
+    if(window.ShiyingDownloads?.download){const message=await window.ShiyingDownloads.download(items,zip,token,controller.signal);if(version===sessionVersion&&!controller.signal.aborted){$('status').textContent=message;if(message?.includes('失败'))parseCache=undefined;}return;}
     if(!zip&&items.length>1){
       if(window.ShiyingDownloads?.beginBatch)await window.ShiyingDownloads.beginBatch(controller.signal);
       else if(window.showDirectoryPicker)directory=await window.showDirectoryPicker({mode:'readwrite',id:'shiying-materials'});
       else $('status').textContent='正在逐个保存；如果浏览器询问，请允许本站下载多个文件。';
     }
+    // Keep at most three image requests in flight; save in selection order.
+    const parallel=items.every(file=>['image','cover'].includes(file.kind))?3:1,pending=new Map();
+    const fetchFile=i=>{if(i<items.length)pending.set(i,api('download',{id:items[i].id},controller.signal,true).then(blob=>({blob}),error=>({error})));};
+    for(let i=0;i<Math.min(parallel,items.length);i++)fetchFile(i);
     for(let i=0;i<items.length;i++){
       if(controller.signal.aborted)throw new Error('下载已取消');$('download-label').textContent=`正在下载 ${i+1} / ${items.length} · ${items[i].name}`;
-      try{const blob=await api('download',{id:items[i].id},controller.signal,true);if(version!==sessionVersion||!token)return;
-        if(zip){total+=blob.size;if(total>150*1024*1024)throw new Error('所选文件总大小超过 150 MB，请减少选择');entries.push({name:items[i].name,blob});}
+      try{const result=await pending.get(i);pending.delete(i);if(result.error)throw result.error;const blob=result.blob;if(version!==sessionVersion||!token)return;
+        if(zip)entries.push({name:items[i].name,blob});
         else{if(directory){const handle=await directory.getFileHandle(items[i].name,{create:true});const stream=await handle.createWritable();await stream.write(blob);await stream.close();}else await saveBlob(blob,items[i].name,controller.signal);savedCount++;}
       }
-      catch(e){if(controller.signal.aborted||!token||total>150*1024*1024||e.name==='AbortError'||e.message==='已取消保存')throw e;failed.push(items[i].name+'：'+e.message);}
+      catch(e){parseCache=undefined;if(controller.signal.aborted||!token||e.name==='AbortError'||e.message==='已取消保存')throw e;failed.push(items[i].name+'：'+e.message);}
+      fetchFile(i+parallel);
     }
     if(version!==sessionVersion||!token)return;if(zip?!entries.length:!savedCount)throw new Error(failed[0]||'没有可下载的文件');
     if(zip){if(failed.length)entries.push({name:'下载失败清单.txt',blob:new Blob([failed.join('\n')],{type:'text/plain;charset=utf-8'})});$('download-label').textContent='正在生成 ZIP…';const blob=await window.DownloadZip.create(entries);if(controller.signal.aborted||version!==sessionVersion)return;await saveBlob(blob,'拾影素材_'+new Date().toISOString().slice(0,10)+'.zip',controller.signal);}
     $('status').textContent=`已保存 ${zip?entries.length-(failed.length?1:0):savedCount} 个文件`+(failed.length?`；${failed.length} 个失败`+(zip?'，详情见 ZIP 内清单':'，请稍后重试'):'');
-  }catch(e){if(version===sessionVersion)$('status').textContent=(controller.signal.aborted||e.name==='AbortError'?'下载已取消':e.message)+(savedCount?`，已保存 ${savedCount} 个文件`:'');}
-  finally{window.ShiyingDownloads?.endBatch?.();clearTimeout(timeout);downloadController=undefined;$('download-progress').hidden=true;updateSelection();}
+  }catch(e){parseCache=undefined;if(version===sessionVersion)$('status').textContent=(controller.signal.aborted||e.name==='AbortError'?'下载已取消':e.message)+(savedCount?`，已保存 ${savedCount} 个文件`:'');}
+  finally{controller.abort();window.ShiyingDownloads?.endBatch?.();downloadController=undefined;$('download-progress').hidden=true;updateSelection();}
 }
 $('cancel-download').onclick=()=>downloadController?.abort();$('download-selected').onclick=()=>download(files.filter(f=>selected.has(f.id)),true);
 $('download-individual').onclick=()=>download(files.filter(f=>selected.has(f.id)),false);
@@ -102,7 +125,7 @@ function renderResults(items,home,pagination){
   items.forEach((item,index)=>{
     if(!item||typeof item!=='object')return;const assets=(Array.isArray(item.downloads)?item.downloads:[]).filter(f=>/^[a-f0-9]{32}$/.test(f.id)&&safeUrl(f.url)).map(f=>({...f,work:index,cover:item.cover}));files.push(...assets);assets.filter(f=>['video','image','live'].includes(f.kind)).forEach(f=>selected.add(f.id));
     const section=node('article','work-card');const heading=node('div','work-heading');const title=node('h3','',item.title||item.desc||'未命名作品');heading.append(title,node('span','type-tag',item.type==='video'?'视频':item.type==='live'?'实况':'图集'));section.append(heading);
-    const meta=node('p','work-meta',[item.author?.name,item.duration?item.duration+' 秒':'',`${assets.length} 个素材`].filter(Boolean).join(' · '));section.append(meta);
+    const meta=node('p','work-meta',[item.author?.name,item.quality==='original'?'平台原画':item.quality,item.duration?item.duration+' 秒':'',`${assets.length} 个素材`].filter(Boolean).join(' · '));section.append(meta);
     if(home){const controls=node('div','work-actions');const label=node('label','');const checkbox=node('input');checkbox.type='checkbox';checkbox.dataset.work=String(index);checkbox.onchange=()=>{assets.filter(f=>['video','image','live'].includes(f.kind)).forEach(f=>checkbox.checked?selected.add(f.id):selected.delete(f.id));updateSelection();};label.append(checkbox,document.createTextNode(' 选择作品'));const all=node('button','secondary','下载此作品');all.onclick=()=>download(assets.filter(f=>['video','image','live'].includes(f.kind)),assets.length!==1);controls.append(label,all);section.append(controls);if(safeUrl(item.cover)){const cover=node('img','work-cover');cover.src=safeUrl(item.cover);cover.alt=item.title||'作品封面';cover.loading='lazy';cover.referrerPolicy='no-referrer';section.append(cover);}}
     const grid=node('div','media-grid');assets.forEach(f=>grid.append(fileCard(f)));
     if(home){const details=node('details','work-details');details.append(node('summary','',`展开 ${assets.length} 个素材`),grid);section.append(details);}else section.append(grid);
@@ -110,7 +133,7 @@ function renderResults(items,home,pagination){
   });
   if(!items.length)$('works').append(node('p','empty-result','没有找到公开作品，请检查主页和 Cookie。'));
   if(home&&pagination?.has_more)$('works').append(node('p','field-note','主页还有更多作品。本次已返回所选数量，可调整获取数量后重试。'));
-  $('result').hidden=false;updateSelection();$('result').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
+  $('result').hidden=false;updateSelection();if(window.ShiyingApp)window.ShiyingApp.show('materials');else $('result').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
 }
-renderAccount();api('health').then(d=>{$('connection').textContent='服务已连接 · 支持抖音 / 快手 / 小红书'+(d.platformWarnings?.xiaohongshu?'。'+d.platformWarnings.xiaohongshu:'');if(d.platformWarnings?.xiaohongshu)document.querySelector('[data-platform="xiaohongshu"]').title=d.platformWarnings.xiaohongshu;if(d.features?.home){document.querySelector('.mode-tabs').hidden=false;$('nav-home').hidden=false;}}).catch(()=>{$('connection').textContent='后端暂时无法连接，请检查服务状态';});
-if(token)api('me').then(d=>renderAccount(d.email)).catch(e=>{$('status').textContent=e.message;});
+renderAccount();api('health').then(d=>{$('connection').textContent=(deviceMode?'手机解析已就绪':'服务已连接')+' · 支持抖音 / 快手 / 小红书'+(d.platformWarnings?.xiaohongshu?'。'+d.platformWarnings.xiaohongshu:'');if(d.platformWarnings?.xiaohongshu)document.querySelector('[data-platform="xiaohongshu"]').title=d.platformWarnings.xiaohongshu;if(d.features?.home){document.querySelector('.mode-tabs').hidden=false;$('nav-home').hidden=false;}}).catch(()=>{$('connection').textContent='后端暂时无法连接，请检查服务状态';});
+if(token&&!deviceMode){const version=sessionVersion;api('me').then(d=>{if(version===sessionVersion)renderAccount(d.email);}).catch(e=>{if(version===sessionVersion)$('status').textContent=e.message;});}

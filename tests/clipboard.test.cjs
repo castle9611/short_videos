@@ -1,0 +1,20 @@
+const {JSDOM}=require('jsdom'),fs=require('node:fs'),assert=require('node:assert/strict');
+const dom=new JSDOM(fs.readFileSync('web/index.html','utf8'),{url:'https://appassets.androidplatform.net/assets/web/index.html',runScripts:'outside-only'}),w=dom.window;
+Object.assign(w,{TextEncoder,AbortController,AbortSignal,Blob,Request,Response,Headers,DOMException,matchMedia:()=>({matches:true}),scrollTo(){}});
+Object.defineProperty(w.crypto,'randomUUID',{value:require('node:crypto').randomUUID});w.HTMLElement.prototype.scrollIntoView=()=>{};
+w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
+let enabled=true,clipboard='',reads=0,pages=0;w.APP_CONFIG={persistSession:true};
+w.fetch=()=>{throw new Error('Clipboard parsing must use the native platform transport');};
+const html='<script>window.INIT_STATE={"tusjoh1":{"photo":{"caption":"剪贴板视频","mainMvUrls":[{"url":"https://v.a.yximgs.com/video.mp4"}]}}}</script>';
+w.ShiyingAndroid={serverUrl:()=> 'device',folderName:()=> '素材',autoClipboardEnabled:()=>enabled,setAutoClipboard:value=>enabled=value,clipboardText(){reads++;return clipboard;},platformRequest(id,url,method){pages++;queueMicrotask(()=>w.ShiyingDownloads.onResponse(id,JSON.stringify({status:200,body:method==='HEAD'?'':html,headers:{'Content-Type':'text/html'},url})));return '';},cancelRequest(){}};
+for(const file of ['android/app/build/generated/webAssets/web/device-parser.js','android/native-ui.js','android/native-downloads.js','web/app.js'])w.eval(fs.readFileSync(file,'utf8'));
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+(async()=>{
+  await tick();w.document.getElementById('share').value='上次输入';w.ShiyingDownloads.onAppOpen();await tick();assert.equal(w.document.getElementById('share').value,'');assert.equal(reads,1);assert.equal(pages,0);
+  clipboard='文字 https://example.com/ 无关链接 https://www.kuaishou.com/f/clip。 复制打开';w.ShiyingDownloads.onAppOpen();for(let i=0;i<8;i++)await tick();assert.equal(w.document.getElementById('share').value,'https://www.kuaishou.com/f/clip');assert.equal(pages,2);assert.equal(w.document.querySelector('.app-tab[aria-current="page"]').dataset.page,'materials');
+  const toggle=w.document.getElementById('auto-clipboard');toggle.checked=false;toggle.dispatchEvent(new w.Event('change'));assert.equal(enabled,false);
+  const previousReads=reads;w.document.getElementById('share').value='旧链接';w.ShiyingDownloads.onAppOpen();await tick();assert.equal(w.document.getElementById('share').value,'');assert.equal(reads,previousReads);assert.equal(pages,2);
+  toggle.checked=true;toggle.dispatchEvent(new w.Event('change'));clipboard='javascript:alert(1) https://kuaishou.com.evil.test/video';w.ShiyingDownloads.onAppOpen();await tick();assert.equal(w.document.getElementById('share').value,'');assert.equal(pages,2);
+  assert.ok(w.document.querySelector('#app-page-settings #auto-clipboard'));
+  console.log('PASS: open clears stale input, supported clipboard links auto-parse, disabled setting never reads clipboard, unsafe links are ignored');
+})().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>w.close());

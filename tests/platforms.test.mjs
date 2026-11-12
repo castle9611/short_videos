@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {embeddedState,extractKuaishou,extractXhs,parsePlatform} from '../cloudflare/platforms.mjs';
+import {embeddedState,extractKuaishou,extractXhs,formatXhs,parsePlatform} from '../cloudflare/platforms.mjs';
 assert.equal(embeddedState('<script>window.__INITIAL_STATE__={"a":undefined,"b":"undefined and } text"};</script>','__INITIAL_STATE__').b,'undefined and } text');
 const ks='<script>window.INIT_STATE='+JSON.stringify({tusjoh1:{photo:{caption:'快手图集',userName:'作者',ext_params:{atlas:{list:['path/a.jpg','path/b.jpg']}},music:{audioUrls:[{url:'https://txmov2.a.kwimgs.com/music.mp3'}]}}}})+'</script>';
 assert.equal(extractKuaishou(ks,'https://www.kuaishou.com/short-video/1').images.length,2);
@@ -45,3 +45,16 @@ for(const host of ['v5-dy-ov-experiment.zjcdn.com','v3-dy-o.zjcdn.com']){
 }
 assert.equal(mediaAllowed('https://unrelated.zjcdn.com/sample.mp4'),false);
 console.log('PASS: Douyin video CDN registration and spoofed/unrelated host rejection');
+
+const qualityPhoto={width:720,height:1280,mainMvUrls:[{url:'https://v.a.yximgs.com/720.mp4'}],manifest:{adaptationSet:[{representation:[
+  {url:'https://v.a.yximgs.com/540.mp4',width:540,height:960,avgBitrate:9000000},
+  {url:'https://v.a.yximgs.com/1080-low.mp4',width:1080,height:1920,avgBitrate:1000000},
+  {url:'https://v.a.yximgs.com/1080-high.mp4',width:1080,height:1920,avgBitrate:2000000}
+]}]}};
+const qualityKs=extractKuaishou('window.INIT_STATE='+JSON.stringify({tusjoh1:{photo:qualityPhoto}}),'https://www.kuaishou.com/short-video/1');
+assert.equal(qualityKs.url,'https://v.a.yximgs.com/1080-high.mp4');assert.equal(qualityKs.quality,'1080×1920');
+const qualityNote={type:'video',video:{media:{stream:{h264:[{masterUrl:'https://sns-video.xhscdn.com/720.mp4',width:720,height:1280,videoBitrate:9000000}],h265:[{masterUrl:'https://sns-video.xhscdn.com/4k.mp4',width:2160,height:3840,videoBitrate:5000000}]}}}};
+assert.equal(formatXhs(qualityNote).url,'https://sns-video.xhscdn.com/4k.mp4');assert.equal(formatXhs(qualityNote).quality,'2160×3840');
+qualityNote.video.consumer={originVideoKey:'/original.mp4'};
+assert.equal(formatXhs(qualityNote).url,'https://sns-video-bd.xhscdn.com/original.mp4');assert.equal(formatXhs(qualityNote).quality,'original');
+console.log('PASS: Kuaishou resolution/bitrate ranking and XHS cross-codec/original selection');
