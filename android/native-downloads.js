@@ -90,13 +90,14 @@
       finally{waiting.delete(id);signal.removeEventListener('abort',abort);}
     },
     onProgress(id,message){waiting.get(id)?.progress?.(message);},
+    motionPhotos:typeof window.ShiyingAndroid.supportsMotionPhotos==='function',
     async download(items,zip,token,signal){
       await this.beginBatch(signal);
       const id='download_'+Date.now()+'_'+Math.random().toString(36).slice(2);
       const abort=()=>{window.ShiyingAndroid.cancelDownload(id);waiting.get(id)?.reject(new Error('已取消保存'));};
       try{
         if(signal?.aborted)throw new Error('已取消保存');signal?.addEventListener('abort',abort,{once:true});
-        return await new Promise((resolve,reject)=>{waiting.set(id,{resolve,reject,progress:message=>{document.getElementById('download-label').textContent=message;}});const error=window.ShiyingAndroid.downloadBatch(id,JSON.stringify(items.map(({id,name,url})=>({id,name,url}))),zip,token);if(error)reject(new Error(error));});
+        return await new Promise((resolve,reject)=>{waiting.set(id,{resolve,reject,progress:message=>{document.getElementById('download-label').textContent=message;}});const error=window.ShiyingAndroid.downloadBatch(id,JSON.stringify(items.map(({id,name,url,motionVideo})=>({id,name,url,motionVideo}))),zip,token);if(error)reject(new Error(error));});
       }finally{waiting.delete(id);signal?.removeEventListener('abort',abort);}
     },
     async beginBatch(signal){

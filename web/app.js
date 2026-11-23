@@ -71,7 +71,7 @@ function updateSelection(){
   $('download-selected').textContent=`下载所选 ZIP (${selected.size})`;$('download-selected').disabled=!selected.size||!!downloadController;
   $('download-individual').textContent=`逐个下载 (${selected.size})`;$('download-individual').disabled=!selected.size||!!downloadController;
   document.querySelectorAll('input[data-file-id]').forEach(input=>{input.checked=selected.has(input.dataset.fileId);});
-  document.querySelectorAll('input[data-work]').forEach(input=>{const group=files.filter(f=>f.work===Number(input.dataset.work)&&['video','image','live'].includes(f.kind));input.checked=group.length>0&&group.every(f=>selected.has(f.id));input.indeterminate=group.some(f=>selected.has(f.id))&&!input.checked;});
+  document.querySelectorAll('input[data-work]').forEach(input=>{const group=files.filter(f=>f.work===Number(input.dataset.work)&&['video','image','live','motion'].includes(f.kind));input.checked=group.length>0&&group.every(f=>selected.has(f.id));input.indeterminate=group.some(f=>selected.has(f.id))&&!input.checked;});
 }
 async function saveBlob(blob,name,signal){if(window.ShiyingDownloads?.save)return await window.ShiyingDownloads.save(blob,name,signal);const url=URL.createObjectURL(blob);const a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function download(items,zip){
@@ -114,19 +114,32 @@ $('image-preview').onkeydown=e=>{if(e.key==='ArrowLeft')$('preview-prev').click(
 let touchX;$('preview-image').addEventListener('touchstart',e=>{touchX=e.changedTouches[0].clientX;},{passive:true});$('preview-image').addEventListener('touchend',e=>{if(touchX===undefined)return;const dx=e.changedTouches[0].clientX-touchX;if(Math.abs(dx)>45)$(dx<0?'preview-next':'preview-prev').click();touchX=undefined;},{passive:true});
 function fileCard(file){
   const card=node('article','media-card');card.dataset.kind=file.kind;const top=node('div','media-preview');const src=safeUrl(file.url);
-  if(['video','live'].includes(file.kind)&&src){const video=node('video');video.src=src;video.controls=true;video.preload='none';if(safeUrl(file.cover))video.poster=safeUrl(file.cover);top.append(video);}
+  if((['video','live'].includes(file.kind)||file.kind==='motion')&&src){const video=node('video');video.src=file.kind==='motion'?safeUrl(file.motionVideo.url):src;video.controls=true;video.preload='none';const poster=file.kind==='motion'?src:safeUrl(file.cover);if(poster)video.poster=poster;top.append(video);}
   else if(file.kind==='music'){const audio=node('audio');audio.controls=true;audio.preload='none';audio.src=src;top.append(node('span','audio-mark','♫'),audio);}
   else if(src){const link=node('button','image-open');link.type='button';link.setAttribute('aria-label','预览 '+file.name);link.onclick=()=>showImage(file);const img=node('img');img.src=src;img.alt=file.name;img.loading='lazy';img.referrerPolicy='no-referrer';link.append(img);top.append(link);}
   const choose=node('label','file-choice');const input=node('input');input.type='checkbox';input.dataset.fileId=file.id;input.setAttribute('aria-label','选择 '+file.name);input.onchange=()=>{input.checked?selected.add(file.id):selected.delete(file.id);updateSelection();};choose.append(input,node('span','',kinds[file.kind]||'素材'));top.append(choose);card.append(top);
   const bottom=node('div','media-bottom');const name=node('span','file-name',file.name);name.title=file.name;const button=node('button','secondary','下载 ↓');button.onclick=()=>download([file],false);bottom.append(name,button);card.append(bottom);return card;
 }
+function groupMotionPhotos(assets,pairs){
+  if(!window.ShiyingDownloads?.motionPhotos||!Array.isArray(pairs))return assets;
+  const byImage=new Map(assets.filter(file=>file.kind==='image').map(file=>[file.url,file]));
+  const byVideo=new Map(assets.filter(file=>file.kind==='live').map(file=>[file.url,file]));
+  const replacements=new Map(),usedVideos=new Set();
+  for(const pair of pairs){
+    const image=byImage.get(pair.image),video=byVideo.get(pair.video);
+    if(!image||!video||replacements.has(image.id))continue;
+    replacements.set(image.id,{...image,kind:'motion',name:image.name.replace(/\.[^.]+$/,'.jpg'),motionVideo:{id:video.id,url:video.url}});
+    usedVideos.add(video.id);
+  }
+  return assets.filter(file=>!usedVideos.has(file.id)).map(file=>replacements.get(file.id)||file);
+}
 function renderResults(items,home,pagination){
   if(!Array.isArray(items))throw new Error('接口未返回有效作品列表');files=[];selected.clear();$('works').replaceChildren();$('result-title').textContent=home?`主页作品 · ${items.length} 条`:'作品素材';$('works').className=home?'home-works':'';
   items.forEach((item,index)=>{
-    if(!item||typeof item!=='object')return;const assets=(Array.isArray(item.downloads)?item.downloads:[]).filter(f=>/^[a-f0-9]{32}$/.test(f.id)&&safeUrl(f.url)).map(f=>({...f,work:index,cover:item.cover}));files.push(...assets);assets.filter(f=>['video','image','live'].includes(f.kind)).forEach(f=>selected.add(f.id));
+    if(!item||typeof item!=='object')return;const assets=groupMotionPhotos((Array.isArray(item.downloads)?item.downloads:[]).filter(f=>/^[a-f0-9]{32}$/.test(f.id)&&safeUrl(f.url)).map(f=>({...f,work:index,cover:item.cover})),item.live_photo);files.push(...assets);assets.filter(f=>['video','image','live','motion'].includes(f.kind)).forEach(f=>selected.add(f.id));
     const section=node('article','work-card');const heading=node('div','work-heading');const title=node('h3','',item.title||item.desc||'未命名作品');heading.append(title,node('span','type-tag',item.type==='video'?'视频':item.type==='live'?'实况':'图集'));section.append(heading);
     const meta=node('p','work-meta',[item.author?.name,item.quality==='original'?'平台原画':item.quality,item.duration?item.duration+' 秒':'',`${assets.length} 个素材`].filter(Boolean).join(' · '));section.append(meta);
-    if(home){const controls=node('div','work-actions');const label=node('label','');const checkbox=node('input');checkbox.type='checkbox';checkbox.dataset.work=String(index);checkbox.onchange=()=>{assets.filter(f=>['video','image','live'].includes(f.kind)).forEach(f=>checkbox.checked?selected.add(f.id):selected.delete(f.id));updateSelection();};label.append(checkbox,document.createTextNode(' 选择作品'));const all=node('button','secondary','下载此作品');all.onclick=()=>download(assets.filter(f=>['video','image','live'].includes(f.kind)),assets.length!==1);controls.append(label,all);section.append(controls);if(safeUrl(item.cover)){const cover=node('img','work-cover');cover.src=safeUrl(item.cover);cover.alt=item.title||'作品封面';cover.loading='lazy';cover.referrerPolicy='no-referrer';section.append(cover);}}
+    if(home){const controls=node('div','work-actions');const label=node('label','');const checkbox=node('input');checkbox.type='checkbox';checkbox.dataset.work=String(index);checkbox.onchange=()=>{assets.filter(f=>['video','image','live','motion'].includes(f.kind)).forEach(f=>checkbox.checked?selected.add(f.id):selected.delete(f.id));updateSelection();};label.append(checkbox,document.createTextNode(' 选择作品'));const all=node('button','secondary','下载此作品');all.onclick=()=>download(assets.filter(f=>['video','image','live','motion'].includes(f.kind)),assets.length!==1);controls.append(label,all);section.append(controls);if(safeUrl(item.cover)){const cover=node('img','work-cover');cover.src=safeUrl(item.cover);cover.alt=item.title||'作品封面';cover.loading='lazy';cover.referrerPolicy='no-referrer';section.append(cover);}}
     const grid=node('div','media-grid');assets.forEach(f=>grid.append(fileCard(f)));
     if(home){const details=node('details','work-details');details.append(node('summary','',`展开 ${assets.length} 个素材`),grid);section.append(details);}else section.append(grid);
     if(!assets.length)section.append(node('p','field-note','此作品未返回可下载素材，可能已失效或受到平台限制。'));$('works').append(section);

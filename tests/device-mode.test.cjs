@@ -5,13 +5,31 @@ Object.defineProperty(w.crypto,'randomUUID',{value:require('node:crypto').random
 w.HTMLElement.prototype.scrollIntoView=()=>{};w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};
 w.APP_CONFIG={persistSession:true};w.localStorage.setItem('shiying-token','cloud-token');let pages=0;
 w.fetch=()=>{throw new Error('Built-in parsing must not use WebView fetch or a backend');};
-const html='<script>window.INIT_STATE={"tusjoh1":{"photo":{"caption":"本地视频","mainMvUrls":[{"url":"https://v.a.yximgs.com/video.mp4"}]}}}</script>';
-w.ShiyingAndroid={serverUrl:()=> 'device',folderName:()=> '素材',apiRequest(){throw new Error('Must not contact a backend');},platformRequest(id,url,method,headers){pages++;assert.ok(url.startsWith('https://www.kuaishou.com/'));assert.equal(JSON.parse(headers).authorization,undefined);queueMicrotask(()=>w.ShiyingDownloads.onResponse(id,JSON.stringify({status:200,body:method==='HEAD'?'':html,headers:{'Content-Type':'text/html'},url})));return '';},cancelRequest(){}};
+let html='<script>window.INIT_STATE={"tusjoh1":{"photo":{"caption":"本地视频","mainMvUrls":[{"url":"https://v.a.yximgs.com/video.mp4"}]}}}</script>';
+w.ShiyingAndroid={serverUrl:()=> 'device',folderName:()=> '素材',supportsMotionPhotos:()=>true,apiRequest(){throw new Error('Must not contact a backend');},platformRequest(id,url,method,headers){pages++;assert.match(url,/^https:\/\/www\.(kuaishou|xiaohongshu)\.com\//);assert.equal(JSON.parse(headers).authorization,undefined);queueMicrotask(()=>w.ShiyingDownloads.onResponse(id,JSON.stringify({status:200,body:method==='HEAD'?'':html,headers:{'Content-Type':'text/html'},url})));return '';},cancelRequest(){}};
 w.eval(fs.readFileSync('android/app/build/generated/webAssets/web/device-parser.js','utf8'));
 w.eval(fs.readFileSync('android/native-downloads.js','utf8'));w.eval(fs.readFileSync('web/app.js','utf8'));
 (async()=>{
   await new Promise(resolve=>setImmediate(resolve));assert.equal(w.APP_CONFIG.deviceMode,true);assert.match(w.document.getElementById('account').textContent,/无需登录/);assert.equal(w.document.querySelector('#account button'),null);
   w.document.getElementById('share').value='https://www.kuaishou.com/f/test';await w.document.getElementById('parse-form').onsubmit({preventDefault(){}});
   assert.equal(pages,2);assert.equal(w.document.querySelectorAll('.media-card[data-kind="video"]').length,1);assert.equal(w.document.getElementById('auth-dialog').open,false);assert.equal(w.localStorage.getItem('shiying-token'),'cloud-token');
+  const image='https://sns-img.xhscdn.com/still.jpg',clip='https://sns-video.xhscdn.com/motion.mp4';
+  const note={type:'normal',imageList:[{urlDefault:image,stream:{h264:[{masterUrl:clip}]}},{urlDefault:'https://sns-img.xhscdn.com/other.jpg'}]};
+  html='<script>window.__INITIAL_STATE__='+JSON.stringify({note:{noteDetailMap:{abc:{note}}}})+'</script>';
+  w.document.getElementById('share').value='https://www.xiaohongshu.com/explore/abc';await w.document.getElementById('parse-form').onsubmit({preventDefault(){}});
+  const motion=w.document.querySelector('.media-card[data-kind="motion"]');
+  assert.ok(motion,w.document.getElementById("status").textContent);assert.equal(motion.querySelector('video').src,clip);assert.equal(motion.querySelector('video').poster,image);
+  assert.equal(w.document.querySelectorAll('.media-card[data-kind="live"]').length,0);
+  assert.equal(w.document.querySelectorAll('.media-card[data-kind="image"]').length,1);
+  w.ShiyingAndroid.beginBatch=id=>{queueMicrotask(()=>w.ShiyingDownloads.onReady(id));return '';};
+  w.ShiyingAndroid.endBatch=()=>{};
+  w.ShiyingAndroid.downloadBatch=(id,json)=>{
+    const items=JSON.parse(json);
+    assert.equal(items.length,1);assert.equal(items[0].url,image);assert.equal(items[0].motionVideo.url,clip);assert.match(items[0].name,/\.jpg$/);
+    queueMicrotask(()=>w.ShiyingDownloads.onReady(id,'??????'));return '';
+  };
+  motion.querySelector('.media-bottom button').click();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(w.document.getElementById('status').textContent,'??????');
   console.log('PASS: actual APK parser bundle, native page transport, login-free device mode and no backend requests');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>w.close());

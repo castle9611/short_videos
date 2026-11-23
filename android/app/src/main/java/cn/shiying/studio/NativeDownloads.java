@@ -53,6 +53,12 @@ final class NativeDownloads {
                 String url=item.getString("url").replaceFirst("^http://","https://");
                 if(!item.getString("id").matches("[a-f0-9]{32}")||!MediaTransfer.allowed(url,hosts))throw new IOException();item.put("url",url);
                 item.put("name",safeName(item.getString("name")));
+                if(item.has("motionVideo")){
+                    JSONObject video=item.getJSONObject("motionVideo");
+                    String videoUrl=video.getString("url").replaceFirst("^http://","https://");
+                    if(!video.getString("id").matches("[a-f0-9]{32}")||!MediaTransfer.allowed(videoUrl,hosts))throw new IOException();
+                    video.put("url",videoUrl);
+                }
             }
             Job job=new Job(id,items,zip,token,folder,hosts,backend.get());current=job;
             new Thread(()->run(job),"shiying-download").start();return "";
@@ -86,6 +92,16 @@ final class NativeDownloads {
                     File file=new File(cache,index+".media");
                     try{
                         job.check();JSONObject item=job.items.getJSONObject(index);job.media.fetch(item.getString("url"),item.getString("id"),job.token,file);
+                        JSONObject video=item.optJSONObject("motionVideo");
+                        if(video!=null){
+                            File clip=new File(cache,index+".mp4"),motion=new File(cache,index+".jpg");
+                            try{
+                                job.media.fetch(video.getString("url"),video.getString("id"),job.token,clip);
+                                MotionPhoto.write(file,clip,motion,job::check);
+                            }finally{clip.delete();}
+                            file.delete();
+                            file=motion;
+                        }
                         if(!job.zip){save(job,file,item.getString("name"),mime(item.getString("name")));job.saved.incrementAndGet();file.delete();}
                         return new Result(index,file,null);
                     }catch(Exception error){file.delete();return new Result(index,null,error.getMessage()==null?"下载失败":error.getMessage());}

@@ -202,6 +202,7 @@ public final class MainActivity extends Activity {
             }catch(Exception error){notifyJs("onError",id,"无法保留目录授权，请重新选择可写文件夹");}
         }
         @JavascriptInterface public synchronized void endBatch(){batchRequest=null;batchFolder=null;}
+        @JavascriptInterface public boolean supportsMotionPhotos(){return true;}
         @JavascriptInterface public synchronized String downloadBatch(String id,String items,boolean zip,String token){
             if(historyClearing)return "历史文件正在清理，请稍候";
             if(pendingId!=null||batchRequest!=null)return "另一个保存任务尚未结束";
